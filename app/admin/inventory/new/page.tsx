@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -16,6 +16,12 @@ import {
   Cloud,
 } from 'lucide-react';
 import AdminPageFooter from '@/components/admin/AdminPageFooter';
+import {
+  useAdminCategories,
+  useCreateInventoryProductMutation,
+  useUploadImageMutation,
+} from '@/lib/api/hooks';
+import { formatAmount, kesToUsd } from '@/lib/currency';
 
 const BLUE = '#004aad';
 const BLUE_DARK = '#00357f';
@@ -28,17 +34,6 @@ const STEPS = [
   { id: 3, label: 'Photos' },
   { id: 4, label: 'Review' },
 ] as const;
-
-const CATEGORIES = [
-  'Renewable Energy',
-  'Consumer Electronics',
-  'Industrial Parts',
-  'Textiles & Apparel',
-  'Agri-Exports',
-  'Home & Kitchen',
-  'Industrial Machinery',
-  'Construction',
-];
 
 type HubCode = 'CN' | 'AE' | 'KE';
 
@@ -61,7 +56,7 @@ interface FormState {
   brand: string;
   description: string;
   primaryOrigin: HubCode;
-  priceUsd: string;
+  priceKes: string;
   stock: number;
   /** Maps to product.image_url — inventory thumbnail & default PDP hero */
   mainImage: string | null;
@@ -73,11 +68,11 @@ interface FormState {
 const initialForm: FormState = {
   name: '',
   sku: '',
-  category: 'Renewable Energy',
+  category: '',
   brand: '',
   description: '',
   primaryOrigin: 'CN',
-  priceUsd: '',
+  priceKes: '',
   stock: 0,
   mainImage: null,
   otherImages: [],
@@ -96,15 +91,28 @@ function inputClass() {
   return 'w-full px-3 py-2.5 text-sm border border-[#c3c6d5] rounded bg-white focus:outline-none focus:border-[#004aad]';
 }
 
-function formatUsd(value: string) {
+function formatPricePreview(value: string) {
   const n = parseFloat(value);
   if (Number.isNaN(n)) return '—';
-  return `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`;
+  return formatAmount(n);
 }
 
 export default function ProductOnboardingPage() {
   const router = useRouter();
+  const createProduct = useCreateInventoryProductMutation();
+  const uploadImage = useUploadImageMutation();
+  const { data: adminCategories = [] } = useAdminCategories();
+  const categoryOptions =
+    adminCategories.length > 0
+      ? adminCategories.map((c) => c.name)
+      : [];
   const [form, setForm] = useState<FormState>(initialForm);
+
+  useEffect(() => {
+    if (!form.category && categoryOptions[0]) {
+      setForm((prev) => ({ ...prev, category: categoryOptions[0] }));
+    }
+  }, [categoryOptions, form.category]);
   const [currentStep, setCurrentStep] = useState(1);
   const [lastSaved, setLastSaved] = useState('—');
 
@@ -129,13 +137,13 @@ export default function ProductOnboardingPage() {
       form.sku.trim().length > 0 &&
       form.category.length > 0 &&
       form.description.trim().length > 0;
-    const price = parseFloat(form.priceUsd);
+    const price = parseFloat(form.priceKes);
     const s2 = !Number.isNaN(price) && price > 0 && form.stock > 0;
     const s3 = !!form.mainImage;
     return { 1: s1, 2: s2, 3: s3, 4: s1 && s2 && s3 };
   }, [form]);
 
-  const previewPrice = formatUsd(form.priceUsd);
+  const previewPrice = formatPricePreview(form.priceKes);
   const isLowStock = form.stock > 0 && form.stock < LOW_STOCK_THRESHOLD;
 
   const listingScore = useMemo(() => {
@@ -144,7 +152,7 @@ export default function ProductOnboardingPage() {
     if (form.sku.trim()) score += 10;
     if (form.description.trim().length > 20) score += 10;
     if (form.category) score += 5;
-    if (parseFloat(form.priceUsd) > 0) score += 15;
+    if (parseFloat(form.priceKes) > 0) score += 15;
     if (form.stock > 0) score += 15;
     if (form.mainImage) score += 15;
     if (form.otherImages.length > 0) score += Math.min(10, form.otherImages.length * 2);
@@ -166,22 +174,35 @@ export default function ProductOnboardingPage() {
     );
   };
 
-  const handleMainImagePick = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleMainImagePick = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    update('mainImage', URL.createObjectURL(file));
+    try {
+      const { url } = await uploadImage.mutateAsync(file);
+      update('mainImage', url);
+    } catch {
+      /* upload failed */
+    }
     e.target.value = '';
   };
 
-  const handleOtherImagesPick = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleOtherImagesPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files?.length) return;
-    const urls = Array.from(files).map((f) => URL.createObjectURL(f));
-    setForm((prev) => ({
-      ...prev,
-      otherImages: [...prev.otherImages, ...urls].slice(0, 8),
-    }));
-    setLastSaved('just now');
+    try {
+      const urls: string[] = [];
+      for (const file of Array.from(files)) {
+        const { url } = await uploadImage.mutateAsync(file);
+        urls.push(url);
+      }
+      setForm((prev) => ({
+        ...prev,
+        otherImages: [...prev.otherImages, ...urls].slice(0, 8),
+      }));
+      setLastSaved('just now');
+    } catch {
+      /* upload failed */
+    }
     e.target.value = '';
   };
 
@@ -202,8 +223,31 @@ export default function ProductOnboardingPage() {
     if (currentStep > 1) setCurrentStep((s) => s - 1);
   }
 
-  function handleSubmit() {
-    if (!stepValid[4]) return;
+  async function handleSubmit() {
+    if (!stepValid[4] || createProduct.isPending) return;
+    const priceKes = parseFloat(form.priceKes);
+    if (!form.mainImage || Number.isNaN(priceKes)) return;
+
+    try {
+      await createProduct.mutateAsync({
+        name: form.name.trim(),
+        sku: form.sku.trim(),
+        category: form.category,
+        brand: form.brand.trim() || undefined,
+        description: form.description.trim(),
+        primary_origin: form.primaryOrigin,
+        price_usd: kesToUsd(priceKes),
+        stock: Math.max(1, form.stock),
+        image_url: form.mainImage,
+        images: [form.mainImage, ...form.otherImages].slice(0, 8),
+        attributes: form.attributes
+          .filter((a) => a.feature.trim() && a.value.trim())
+          .map((a) => ({ feature: a.feature.trim(), value: a.value.trim() })),
+      });
+    } catch {
+      return;
+    }
+
     setLastSaved('just now');
     router.push('/admin/inventory');
   }
@@ -308,7 +352,7 @@ export default function ProductOnboardingPage() {
                       onChange={(e) => update('category', e.target.value)}
                       className={inputClass()}
                     >
-                      {CATEGORIES.map((c) => (
+                      {categoryOptions.map((c) => (
                         <option key={c} value={c}>
                           {c}
                         </option>
@@ -362,25 +406,17 @@ export default function ProductOnboardingPage() {
               <div className="space-y-6">
                 <h2 className="text-sm font-bold text-black">Pricing & Stock</h2>
                 <div className="max-w-xs">
-                  <FieldLabel htmlFor="priceUsd">Marketplace Price (USD) *</FieldLabel>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#737784]">
-                      $
-                    </span>
-                    <input
-                      id="priceUsd"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={form.priceUsd}
-                      onChange={(e) => update('priceUsd', e.target.value)}
-                      placeholder="4250.00"
-                      className={`${inputClass()} pl-7`}
-                    />
-                  </div>
-                  <p className="text-[10px] text-[#737784] mt-1">
-                    Single marketplace price for this product.
-                  </p>
+                  <FieldLabel htmlFor="priceKes">Marketplace Price *</FieldLabel>
+                  <input
+                    id="priceKes"
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={form.priceKes}
+                    onChange={(e) => update('priceKes', e.target.value)}
+                    placeholder="573750"
+                    className={inputClass()}
+                  />
                 </div>
 
                 <div className="max-w-md">

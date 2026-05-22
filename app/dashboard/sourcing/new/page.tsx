@@ -13,10 +13,18 @@ import {
 } from 'lucide-react';
 import { toast, Toaster } from 'sonner';
 import { FileUploadField } from '@/components/sourcing/file-upload-field';
+import { useCreateSourcingRequestMutation } from '@/lib/api/hooks';
 import {
-  createUserSourcingRequest,
-  type OriginMarket,
-} from '@/lib/data';
+  HUB_OPTIONS,
+  SOURCING_SHIPPING_METHODS,
+  SOURCING_UNITS,
+  SOURCING_URGENCIES,
+  USER_SOURCING_CATEGORY_OPTIONS,
+  USER_SOURCING_DESTINATIONS,
+  type HubCode,
+  type SourcingShippingMethod,
+  type SourcingUrgency,
+} from '@/lib/contracts';
 
 const BLUE = '#004aad';
 const BLUE_DARK = '#00357f';
@@ -27,37 +35,17 @@ const STEPS = [
   { id: 3, label: 'REVIEW', sub: 'Submit for Verification' },
 ] as const;
 
-const CATEGORIES = [
-  'Consumer Electronics',
-  'Industrial Machinery',
-  'Energy Systems',
-  'Textiles',
-  'Construction Materials',
-  'Agri-Business',
-];
-
-const ORIGINS: { code: OriginMarket; label: string; flag: string }[] = [
-  { code: 'CN', label: 'China', flag: '🇨🇳' },
-  { code: 'AE', label: 'Dubai (UAE)', flag: '🇦🇪' },
-  { code: 'KE', label: 'Kenya', flag: '🇰🇪' },
-];
-
-const DESTINATIONS = [
-  'Nairobi, Kenya',
-  'Mombasa, Kenya',
-  'Kisumu, Kenya',
-  'Dubai, UAE',
-  'Other — specify in notes',
-];
-
-const UNITS = ['units', 'pieces', 'kg', 'tons', 'containers', 'pallets'];
+const CATEGORIES = [...USER_SOURCING_CATEGORY_OPTIONS];
+const ORIGINS = HUB_OPTIONS;
+const DESTINATIONS = [...USER_SOURCING_DESTINATIONS];
+const UNITS = [...SOURCING_UNITS];
 
 type FormState = {
   productName: string;
   category: string;
   urgency: 'standard' | 'express';
   description: string;
-  origin: OriginMarket;
+  origin: HubCode;
   destination: string;
   quantity: string;
   unit: string;
@@ -119,7 +107,7 @@ export default function NewSourcingRequestPage() {
   const [form, setForm] = useState<FormState>(initialForm);
   const [fileCount, setFileCount] = useState(0);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [submitting, setSubmitting] = useState(false);
+  const createRequest = useCreateSourcingRequestMutation();
 
   const patch = (updates: Partial<FormState>) => {
     setForm((current) => ({ ...current, ...updates }));
@@ -179,9 +167,8 @@ export default function NewSourcingRequestPage() {
       return;
     }
 
-    setSubmitting(true);
     try {
-      const created = await createUserSourcingRequest({
+      const created = await createRequest.mutateAsync({
         productName: form.productName.trim(),
         category: form.category,
         urgency: form.urgency,
@@ -203,8 +190,6 @@ export default function NewSourcingRequestPage() {
       toast.error('Could not submit request', {
         description: 'Please try again in a moment.',
       });
-    } finally {
-      setSubmitting(false);
     }
   };
 
@@ -630,11 +615,11 @@ export default function NewSourcingRequestPage() {
                   <button
                     type="button"
                     onClick={handleSubmit}
-                    disabled={submitting}
+                    disabled={createRequest.isPending}
                     className="inline-flex items-center justify-center gap-2 px-6 py-3 text-xs font-bold uppercase text-white rounded-lg sm:ml-auto disabled:opacity-60"
                     style={{ backgroundColor: BLUE_DARK }}
                   >
-                    {submitting ? (
+                    {createRequest.isPending ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin" />
                         Submitting...

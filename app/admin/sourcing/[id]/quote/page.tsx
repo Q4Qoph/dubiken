@@ -1,10 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { getSourcingRequestById } from '@/lib/data';
-import type { SourcingRequestDetail } from '@/lib/mock-data';
+import { useAdminSourcingDetail } from '@/lib/api/hooks';
 import AdminOfficialQuoteForm from '@/components/sourcing/AdminOfficialQuoteForm';
 import AdminPageFooter from '@/components/admin/AdminPageFooter';
 
@@ -13,17 +11,9 @@ const BLUE = '#004aad';
 export default function AdminGenerateQuotePage() {
   const params = useParams();
   const id = typeof params.id === 'string' ? params.id : '';
-  const [detail, setDetail] = useState<SourcingRequestDetail | null | undefined>(undefined);
+  const { data: detail, isLoading, refetch } = useAdminSourcingDetail(id);
 
-  const loadDetail = useCallback(() => {
-    if (id) getSourcingRequestById(id).then(setDetail);
-  }, [id]);
-
-  useEffect(() => {
-    loadDetail();
-  }, [loadDetail]);
-
-  if (detail === undefined) {
+  if (isLoading) {
     return <div className="p-8 text-sm text-[#737784] bg-[#f8f9ff] min-h-full">Loading…</div>;
   }
 
@@ -57,7 +47,7 @@ export default function AdminGenerateQuotePage() {
           requestId={detail.id}
           clientName={detail.client_name}
           initialQuote={detail.quotes[0] ?? null}
-          onSaved={loadDetail}
+          onSaved={() => refetch()}
         />
 
         <p className="text-xs text-[#737784] mt-4 text-center">

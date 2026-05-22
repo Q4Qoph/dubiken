@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   Plus,
@@ -12,28 +12,20 @@ import {
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
-import { getAdminInventoryItems, getAdminInventoryKpis } from '@/lib/data';
-import type { AdminInventoryItem, AdminInventoryKpis } from '@/lib/mock-data';
+import { useAdminInventory, useAdminInventoryKpis } from '@/lib/api/hooks';
+import type { AdminInventoryItem, AdminInventoryKpis } from '@/lib/types';
 import AdminPageFooter from '@/components/admin/AdminPageFooter';
 
 const BLUE = '#004aad';
 const BLUE_DARK = '#00357f';
-const TOTAL_PRODUCTS = 1248;
 const PAGE_SIZE = 10;
 
 export default function AdminInventoryPage() {
-  const [items, setItems] = useState<AdminInventoryItem[]>([]);
-  const [kpis, setKpis] = useState<AdminInventoryKpis | null>(null);
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [page, setPage] = useState(1);
-
-  useEffect(() => {
-    Promise.all([getAdminInventoryItems(), getAdminInventoryKpis()]).then(([list, k]) => {
-      setItems(list);
-      setKpis(k);
-    });
-  }, []);
+  const { data: items = [], isLoading: itemsLoading } = useAdminInventory(search);
+  const { data: kpis, isLoading: kpisLoading } = useAdminInventoryKpis();
 
   const categories = useMemo(
     () => ['all', ...Array.from(new Set(items.map((i) => i.category)))],
@@ -54,9 +46,9 @@ export default function AdminInventoryPage() {
   }, [items, search, categoryFilter]);
 
   const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  const totalPages = Math.max(1, Math.ceil(TOTAL_PRODUCTS / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const showingFrom = filtered.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
-  const showingTo = Math.min(page * PAGE_SIZE, TOTAL_PRODUCTS);
+  const showingTo = Math.min(page * PAGE_SIZE, filtered.length);
 
   return (
     <div className="flex flex-col min-h-full bg-[#f8f9ff]">
@@ -232,7 +224,7 @@ export default function AdminInventoryPage() {
                       <td className="px-5 py-4 align-top">
                         <div className="flex items-center gap-2">
                           <Link
-                            href={`/admin/inventory/new?sku=${encodeURIComponent(item.sku)}`}
+                            href={`/admin/inventory/${item.id}/edit`}
                             className="p-2 border border-[#c3c6d5] rounded hover:bg-[#f8f9ff]"
                             aria-label={`Edit ${item.name}`}
                           >
@@ -262,7 +254,7 @@ export default function AdminInventoryPage() {
 
           <div className="border-t border-[#e5eeff] px-5 py-3 flex flex-col sm:flex-row items-center justify-between gap-3">
             <p className="text-xs text-[#737784]">
-              Showing {showingFrom}-{showingTo} of {TOTAL_PRODUCTS.toLocaleString()} products
+              Showing {showingFrom}-{showingTo} of {filtered.length.toLocaleString()} products
             </p>
             <div className="flex items-center gap-1">
               <button
@@ -273,21 +265,32 @@ export default function AdminInventoryPage() {
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
-              {[1, 2, 3].map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => setPage(p)}
-                  className={`w-8 h-8 flex items-center justify-center border rounded text-xs font-bold ${
-                    page === p
-                      ? 'text-white border-transparent'
-                      : 'border-[#c3c6d5] text-[#434653] bg-white hover:bg-[#f8f9ff]'
-                  }`}
-                  style={page === p ? { backgroundColor: BLUE } : undefined}
-                >
-                  {p}
-                </button>
-              ))}
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter(
+                  (p) =>
+                    p === 1 ||
+                    p === totalPages ||
+                    (p >= page - 1 && p <= page + 1),
+                )
+                .map((p, idx, arr) => (
+                  <span key={p} className="flex items-center">
+                    {idx > 0 && arr[idx - 1] !== p - 1 ? (
+                      <span className="px-1 text-[#737784]">…</span>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => setPage(p)}
+                      className={`w-8 h-8 flex items-center justify-center border rounded text-xs font-bold ${
+                        page === p
+                          ? 'text-white border-transparent'
+                          : 'border-[#c3c6d5] text-[#434653] bg-white hover:bg-[#f8f9ff]'
+                      }`}
+                      style={page === p ? { backgroundColor: BLUE } : undefined}
+                    >
+                      {p}
+                    </button>
+                  </span>
+                ))}
               <button
                 type="button"
                 disabled={page >= totalPages}

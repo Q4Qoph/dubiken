@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   Plus,
@@ -10,8 +9,8 @@ import {
   Wallet,
   ChevronDown,
 } from 'lucide-react';
-import { getUserSourcingDashboard } from '@/lib/data';
-import type { UserSourcingRequestItem } from '@/lib/mock-data';
+import { useUserSourcingDashboard } from '@/lib/api/hooks';
+import type { UserSourcingRequestItem } from '@/lib/types';
 
 const BLUE = '#004aad';
 const BLUE_DARK = '#00357f';
@@ -23,15 +22,9 @@ const statusDot: Record<UserSourcingRequestItem['status_variant'], string> = {
 };
 
 export default function UserSourcingPage() {
-  const [summary, setSummary] = useState({ active: 0, pending_quotes: 0, procured_total: '$0' });
-  const [requests, setRequests] = useState<UserSourcingRequestItem[]>([]);
-
-  useEffect(() => {
-    getUserSourcingDashboard().then((data) => {
-      setSummary(data.summary);
-      setRequests(data.requests);
-    });
-  }, []);
+  const { data, isLoading } = useUserSourcingDashboard();
+  const summary = data?.summary ?? { active: 0, pending_quotes: 0, procured_total: '$0' };
+  const requests = data?.requests ?? [];
 
   return (
     <div className="p-6 lg:p-8 bg-white min-h-full">

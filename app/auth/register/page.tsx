@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import AuthModeTabs from '@/components/auth/auth-mode-tabs';
 import AuthSocialButtons from '@/components/auth/auth-social-buttons';
-import { ContinueToDashboardButton } from '@/components/auth/continue-to-dashboard-button';
+import { AuthSubmitButton } from '@/components/auth/auth-submit-button';
 
 const inputClass =
   'w-full border border-[#e2e8f0] rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a7a]/30 focus:border-[#1a3a7a] transition-all';
@@ -23,6 +23,7 @@ export default function RegisterPage() {
           </label>
           <input
             id="register-company"
+            name="company_name"
             type="text"
             autoComplete="organization"
             placeholder="Your company name"
@@ -35,6 +36,7 @@ export default function RegisterPage() {
           </label>
           <input
             id="register-email"
+            name="email"
             type="email"
             autoComplete="email"
             placeholder="name@company.com"
@@ -47,6 +49,7 @@ export default function RegisterPage() {
           </label>
           <input
             id="register-password"
+            name="password"
             type="password"
             autoComplete="new-password"
             placeholder="••••••••"
@@ -54,7 +57,7 @@ export default function RegisterPage() {
           />
         </div>
 
-        <ContinueToDashboardButton label="Create account" />
+        <AuthSubmitButton mode="register" label="Create account" />
       </form>
 
       <AuthSocialButtons />

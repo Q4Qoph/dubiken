@@ -1,328 +1,386 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { FileText, Package } from 'lucide-react';
-import { getRecentOrders, getShipmentByTrackingId } from '@/lib/data';
+import {
+  ShoppingBag,
+  Package,
+  FileText,
+  Store,
+  Plus,
+  ArrowRight,
+  Truck,
+  CheckCircle2,
+  Loader2,
+  Search,
+} from 'lucide-react';
+import {
+  useCurrentUser,
+  useShipment,
+  useUserMarketplaceOrders,
+  useUserSourcingDashboard,
+} from '@/lib/api/hooks';
+import { useCart } from '@/hooks/use-cart';
+import { parseKsh } from '@/lib/currency';
+import type { UserMarketplaceOrder } from '@/lib/types';
 
-interface Order {
-  id: string;
-  order_number: string;
-  customer_name: string;
-  status: string;
-  origin: string;
-  eta: string;
-}
-
-interface Shipment {
-  id: string;
-  tracking_id: string;
-  current_status: string;
-  origin_city: string;
-  destination_city: string;
-  vessel: string;
-  milestones: {
-    label: string;
-    detail: string;
-    date: string;
-    done: boolean;
-    active?: boolean;
-  }[];
-}
-
+const BLUE = '#004aad';
 const BLUE_DARK = '#00357f';
-const GREEN = '#1a7a4a';
-const ORANGE = '#f07c00';
-const TRACK_BTN = '#c47a2f';
+const ORANGE = '#ff924d';
 
-const statusLabels: Record<string, { label: string; color: string }> = {
-  confirmed: { label: 'Confirmed', color: 'text-[#434653]' },
-  processing: { label: 'Processing', color: 'text-[#004aad]' },
-  dispatched: { label: 'Dispatched', color: 'text-[#f07c00]' },
-  in_port: { label: 'In Port', color: 'text-[#004aad]' },
-  delivered: { label: 'Delivered', color: 'text-green-600' },
-};
+function StatusIcon({ type }: { type: UserMarketplaceOrder['status_icon'] }) {
+  if (type === 'delivered') return <CheckCircle2 className="w-4 h-4 text-green-600" />;
+  if (type === 'processing') return <Loader2 className="w-4 h-4 text-orange-500" />;
+  return <Truck className="w-4 h-4" style={{ color: BLUE }} />;
+}
 
-const orderTitles: Record<string, string> = {
-  in_port: 'Industrial Valves (50 Units)',
-  processing: 'Office Tech Bundle',
-  dispatched: 'Office Tech Bundle',
-  confirmed: 'Warehouse Supplies',
-  delivered: 'Delivered Goods',
-};
+function ProgressBar({ step }: { step: number }) {
+  return (
+    <div className="flex gap-1 w-full max-w-[140px]">
+      {[1, 2, 3, 4].map((i) => (
+        <div
+          key={i}
+          className={`h-1 flex-1 rounded-full ${i <= step ? '' : 'bg-[#e5eeff]'}`}
+          style={i <= step ? { backgroundColor: BLUE } : undefined}
+        />
+      ))}
+    </div>
+  );
+}
 
-const originLabels: Record<string, string> = {
-  China: 'Origin: China',
-  Dubai: 'Origin: Dubai',
-  Kenya: 'Origin: Kenya',
-};
-
-const defaultMilestones = [
-  { label: 'Order Confirmed', detail: 'Warehouse: Guangzhou, CN', date: 'Sep 24', done: true },
-  { label: 'Customs Clearance', detail: 'Port of Nansha', date: 'Sep 28', done: true },
-  { label: 'In Transit (Sea)', detail: 'Vessel: MV Enterprise', date: 'Oct 01', done: false, active: true },
-  { label: 'Arrival at Mombasa', detail: 'Expected: Oct 10', date: 'Oct 10', done: false },
-];
+function RecentOrderRow({ order }: { order: UserMarketplaceOrder }) {
+  return (
+    <Link
+      href="/dashboard/orders"
+      className="flex items-center gap-3 p-3 rounded-lg bg-[#f8f9ff] border border-[#e5eeff] hover:border-[#dce9ff] transition-colors"
+    >
+      <div className="relative w-14 h-14 shrink-0 rounded-lg overflow-hidden bg-white border border-[#e5eeff]">
+        <img src={order.image_url} alt="" className="w-full h-full object-cover" />
+        <span className="absolute bottom-0 left-0 right-0 text-[8px] font-bold text-center bg-white/90 py-0.5">
+          {order.origin_flag}
+        </span>
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-mono text-[#737784]">#{order.order_number}</p>
+        <p className="text-sm font-bold text-black truncate">{order.title}</p>
+        <div className="flex items-center gap-2 mt-1">
+          <StatusIcon type={order.status_icon} />
+          <span className="text-xs font-bold text-[#434653]">{order.status}</span>
+        </div>
+        <ProgressBar step={order.progress_step} />
+      </div>
+      <div className="text-right shrink-0">
+        <p className="text-sm font-bold" style={{ color: BLUE_DARK }}>
+          {order.price_kes}
+        </p>
+        <p className="text-[10px] text-[#737784] mt-0.5">
+          {order.date_label}: {order.date_value}
+        </p>
+      </div>
+      <ArrowRight className="w-4 h-4 text-[#c3c6d5] shrink-0 hidden sm:block" />
+    </Link>
+  );
+}
 
 export default function DashboardPage() {
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [shipment, setShipment] = useState<Shipment | null>(null);
+  const { displayName } = useCurrentUser();
+  const { data: orders = [], isLoading: ordersLoading } = useUserMarketplaceOrders();
+  const { data: sourcingData, isLoading: sourcingLoading } = useUserSourcingDashboard();
+  const { itemCount } = useCart();
   const [trackingInput, setTrackingInput] = useState('');
-  const [activeShipmentTab, setActiveShipmentTab] = useState<'CN TO KE' | 'AE TO KE'>('CN TO KE');
+  const [activeTracking, setActiveTracking] = useState('');
+  const { data: shipment } = useShipment(activeTracking);
+
+  const summary = sourcingData?.summary;
+  const sourcingRequests = (sourcingData?.requests ?? []).slice(0, 3);
 
   useEffect(() => {
-    async function fetchData() {
-      const [ordersData, shipmentData] = await Promise.all([
-        getRecentOrders(5),
-        getShipmentByTrackingId('DBK-99281'),
-      ]);
-      setOrders(ordersData);
-      if (shipmentData) setShipment(shipmentData);
+    if (activeTracking) return;
+    const fromOrder = orders.find((o) => o.tracking_id)?.tracking_id;
+    if (fromOrder) {
+      setActiveTracking(fromOrder);
+      setTrackingInput(fromOrder);
     }
-    fetchData();
-  }, []);
+  }, [orders, activeTracking]);
 
-  const milestones = shipment?.milestones ?? defaultMilestones;
+  const stats = useMemo(() => {
+    const activeOrders = orders.filter((o) => {
+      const s = o.status.toUpperCase();
+      return (
+        s.includes('PROCESS') ||
+        s.includes('TRANSIT') ||
+        s.includes('SHIP') ||
+        s.includes('DISPATCH')
+      );
+    }).length;
+    const delivered = orders.filter((o) =>
+      o.status.toUpperCase().includes('DELIVER'),
+    ).length;
+    const totalSpend = orders.reduce((sum, o) => sum + parseKsh(o.price_kes), 0);
+    return { total: orders.length, activeOrders, delivered, totalSpend };
+  }, [orders]);
 
-  const recentDisplay = [
-    orders.find((o) => o.status === 'in_port'),
-    orders.find((o) => o.status === 'dispatched'),
-  ].filter((o): o is Order => Boolean(o));
-
-  const recentOrders =
-    recentDisplay.length >= 2 ? recentDisplay : orders.slice(0, 2);
+  const recentOrders = orders.slice(0, 4);
+  const milestones = shipment?.milestones ?? [];
+  const firstName = displayName.split(' ')[0] || 'there';
 
   return (
     <div className="min-h-full p-6 lg:p-8">
-      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6">
-        <div>
-          <h1 className="text-2xl font-bold" style={{ color: BLUE_DARK }}>
-            Overview
-          </h1>
-          <p className="text-sm text-[#737784] mt-1">
-            Welcome back, John. You have 3 active shipments.
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold" style={{ color: BLUE_DARK }}>
+          Dashboard
+        </h1>
+        <p className="text-sm text-[#737784] mt-1">
+          Welcome back, {firstName}. Here&apos;s what&apos;s happening with your orders and quotes.
+        </p>
+      </div>
+
+      {/* KPIs */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="bg-white border border-[#e5eeff] rounded-lg p-4">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-[#737784]">
+              Orders
+            </p>
+            <ShoppingBag className="w-4 h-4" style={{ color: BLUE }} />
+          </div>
+          <p className="text-2xl font-bold" style={{ color: BLUE_DARK }}>
+            {ordersLoading ? '…' : stats.total}
+          </p>
+          <p className="text-xs text-[#737784] mt-1">
+            {stats.activeOrders} in progress
           </p>
         </div>
-        <div className="flex flex-col gap-1 shrink-0">
-          <p className="text-xs font-bold text-[#434653]">Track Shipment</p>
-          <div className="flex items-center gap-2">
-            <input
-              value={trackingInput}
-              onChange={(e) => setTrackingInput(e.target.value)}
-              placeholder="Enter Tracking ID (e.g. DBK-88291)"
-              className="w-full sm:w-52 px-3 py-2 text-sm border border-[#c3c6d5] rounded-lg bg-white focus:outline-none focus:border-[#004aad]"
-            />
-            <button
-              type="button"
-              className="px-4 py-2 rounded-lg text-sm font-bold text-white hover:opacity-90 transition-opacity shrink-0"
-              style={{ backgroundColor: TRACK_BTN }}
-            >
-              Track
-            </button>
+
+        <div className="bg-white border border-[#e5eeff] rounded-lg p-4">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-[#737784]">
+              Delivered
+            </p>
+            <CheckCircle2 className="w-4 h-4 text-green-600" />
           </div>
+          <p className="text-2xl font-bold" style={{ color: BLUE_DARK }}>
+            {ordersLoading ? '…' : stats.delivered}
+          </p>
+          <p className="text-xs text-[#737784] mt-1">Completed purchases</p>
+        </div>
+
+        <div className="bg-white border border-[#e5eeff] rounded-lg p-4">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-[#737784]">
+              Sourcing
+            </p>
+            <FileText className="w-4 h-4" style={{ color: BLUE }} />
+          </div>
+          <p className="text-2xl font-bold" style={{ color: BLUE_DARK }}>
+            {sourcingLoading ? '…' : (summary?.active ?? 0)}
+          </p>
+          <p className="text-xs text-[#737784] mt-1">
+            {summary?.pending_quotes ?? 0} pending quotes
+          </p>
+        </div>
+
+        <div className="bg-white border border-[#e5eeff] rounded-lg p-4">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-[#737784]">
+              Order value
+            </p>
+            <Package className="w-4 h-4" style={{ color: ORANGE }} />
+          </div>
+          <p className="text-2xl font-bold" style={{ color: BLUE_DARK }}>
+            {ordersLoading ? '…' : stats.totalSpend.toLocaleString('en-KE')}
+          </p>
+          <p className="text-xs text-[#737784] mt-1">All marketplace orders</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-        <div className="lg:col-span-2 bg-white rounded-lg border border-[#e5eeff] overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-3 border-b border-[#e5eeff]">
-            <h2 className="text-base font-bold" style={{ color: GREEN }}>
-              Live Logistics Map
-            </h2>
-            <div className="flex items-center gap-2">
-              {(['CN TO KE', 'AE TO KE'] as const).map((tab) => (
-                <button
-                  key={tab}
-                  type="button"
-                  onClick={() => setActiveShipmentTab(tab)}
-                  className={`px-3 py-1 rounded-md text-xs font-bold transition-colors ${
-                    activeShipmentTab === tab
-                      ? 'text-white'
-                      : 'bg-[#f8f9ff] text-[#737784] hover:text-[#434653]'
-                  }`}
-                  style={
-                    activeShipmentTab === tab ? { backgroundColor: BLUE_DARK } : undefined
-                  }
-                >
-                  {tab}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="relative bg-[#e8eaed]" style={{ height: '320px' }}>
-            <img
-              src="https://images.pexels.com/photos/711428/pexels-photo-711428.jpeg?auto=compress&cs=tinysrgb&w=1200"
-              alt="World map"
-              className="absolute inset-0 w-full h-full object-cover opacity-50"
-            />
-            <svg
-              className="absolute inset-0 w-full h-full"
-              viewBox="0 0 800 320"
-              preserveAspectRatio="xMidYMid meet"
-            >
-              <path
-                d="M 600 140 Q 500 120 400 160 Q 320 190 280 200"
-                stroke="white"
-                strokeWidth="2"
-                fill="none"
-                strokeDasharray="5 4"
-                opacity="0.85"
-              />
-              <circle cx="600" cy="140" r="5" fill={ORANGE} />
-              <circle cx="280" cy="200" r="4" fill="white" stroke="white" strokeWidth="2" />
-              <circle cx="480" cy="155" r="7" fill={ORANGE} />
-              <circle cx="480" cy="155" r="14" fill={ORANGE} opacity="0.25" />
-            </svg>
-            <div className="absolute top-4 left-4 bg-white rounded-full px-3 py-1.5 shadow-sm flex items-center gap-2 border border-[#e5eeff]">
-              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: ORANGE }} />
-              <span className="text-xs font-medium text-[#434653]">
-                Package DBK-99281 (Transit: South China Sea)
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg border border-[#e5eeff] p-5">
-          <h2 className="text-base font-bold text-black mb-4">Active Quotes</h2>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-sm text-[#434653]">Solar Panels (CN)</span>
-              <span className="text-xs font-bold text-[#f07c00] bg-orange-50 px-2 py-0.5 rounded shrink-0">
-                Awaiting Approval
-              </span>
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-sm text-[#434653]">Leather Goods (AE)</span>
-              <span className="text-xs font-bold text-[#004aad] bg-[#eff4ff] px-2 py-0.5 rounded shrink-0">
-                Negotiating
-              </span>
-            </div>
-          </div>
-        </div>
+      {/* Quick actions */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
+        <Link
+          href="/marketplace"
+          className="flex items-center gap-3 bg-white border border-[#e5eeff] rounded-lg p-4 hover:border-[#004aad] transition-colors"
+        >
+          <Store className="w-5 h-5 shrink-0" style={{ color: BLUE }} />
+          <span className="text-sm font-bold text-black">Marketplace</span>
+        </Link>
+        <Link
+          href="/dashboard/orders"
+          className="flex items-center gap-3 bg-white border border-[#e5eeff] rounded-lg p-4 hover:border-[#004aad] transition-colors"
+        >
+          <ShoppingBag className="w-5 h-5 shrink-0" style={{ color: BLUE }} />
+          <span className="text-sm font-bold text-black">My orders</span>
+        </Link>
+        <Link
+          href="/dashboard/sourcing/new"
+          className="flex items-center gap-3 bg-white border border-[#e5eeff] rounded-lg p-4 hover:border-[#004aad] transition-colors"
+        >
+          <Plus className="w-5 h-5 shrink-0" style={{ color: BLUE }} />
+          <span className="text-sm font-bold text-black">New quote</span>
+        </Link>
+        <Link
+          href={itemCount > 0 ? '/checkout' : '/marketplace'}
+          className="flex items-center gap-3 bg-white border border-[#e5eeff] rounded-lg p-4 hover:border-[#004aad] transition-colors"
+        >
+          <Package className="w-5 h-5 shrink-0" style={{ color: ORANGE }} />
+          <span className="text-sm font-bold text-black">
+            {itemCount > 0 ? `Cart (${itemCount})` : 'Browse products'}
+          </span>
+        </Link>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-lg border border-[#e5eeff] p-5">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Recent orders */}
+        <div className="lg:col-span-2 bg-white rounded-lg border border-[#e5eeff] p-5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-base font-bold" style={{ color: GREEN }}>
-              Recent Orders
+            <h2 className="text-base font-bold" style={{ color: BLUE_DARK }}>
+              Recent orders
             </h2>
             <Link
               href="/dashboard/orders"
-              className="text-sm font-bold hover:underline"
-              style={{ color: BLUE_DARK }}
+              className="text-xs font-bold hover:underline"
+              style={{ color: BLUE }}
             >
-              View All
+              View all →
             </Link>
           </div>
-          <div className="space-y-3">
-            {recentOrders.length > 0 ? (
-              recentOrders.map((order) => {
-                const sc = statusLabels[order.status] || {
-                  label: order.status,
-                  color: 'text-[#434653]',
-                };
-                return (
-                  <div
-                    key={order.id}
-                    className="flex items-center gap-3 p-3 rounded-lg bg-[#f8f9ff] border border-[#e5eeff]"
-                  >
-                    <div className="w-10 h-10 bg-white border border-[#e5eeff] rounded-lg flex items-center justify-center shrink-0">
-                      {order.status === 'in_port' ? (
-                        <Package className="w-5 h-5 text-[#737784]" />
-                      ) : (
-                        <FileText className="w-5 h-5 text-[#737784]" />
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-black truncate">
-                        {orderTitles[order.status] || `Order #${order.order_number}`}
-                      </p>
-                      <p className="text-xs text-[#737784]">
-                        Order #{order.order_number} •{' '}
-                        {originLabels[order.origin] || `Origin: ${order.origin}`}
-                      </p>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <p className={`text-xs font-bold ${sc.color}`}>{sc.label}</p>
-                      <p className="text-xs text-[#737784]">
-                        ETA:{' '}
-                        {order.eta
-                          ? new Date(order.eta).toLocaleDateString('en-US', {
-                              month: 'short',
-                              day: 'numeric',
-                            })
-                          : '—'}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })
-            ) : (
-              <p className="text-sm text-[#737784] text-center py-6">No recent orders</p>
-            )}
-          </div>
-        </div>
 
-        <div className="bg-white rounded-lg border border-[#e5eeff] p-5">
-          <div className="flex items-center justify-between mb-5">
-            <h2 className="text-base font-bold text-black">Shipment Tracker</h2>
-            <span
-              className="text-white text-xs font-bold px-2.5 py-1 rounded-md"
-              style={{ backgroundColor: BLUE_DARK }}
-            >
-              {shipment?.tracking_id || 'DBK-99281'}
-            </span>
-          </div>
-          <div className="relative pl-1">
-            <div className="absolute left-[11px] top-2 bottom-2 w-0.5 bg-[#e5eeff]" />
-            <div className="space-y-5">
-              {milestones.map((milestone, i) => (
-                <div key={i} className="flex items-start gap-4 relative">
-                  <div
-                    className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 z-10 mt-0.5 border-2 ${
-                      milestone.active
-                        ? 'bg-white border-[#f07c00]'
-                        : milestone.done
-                          ? 'border-transparent'
-                          : 'bg-[#f8f9ff] border-[#e5eeff]'
-                    }`}
-                    style={
-                      milestone.done && !milestone.active
-                        ? { backgroundColor: BLUE_DARK, borderColor: BLUE_DARK }
-                        : undefined
-                    }
-                  >
-                    {milestone.done && !milestone.active && (
-                      <div className="w-2 h-2 rounded-full bg-white" />
-                    )}
-                    {milestone.active && (
-                      <div className="w-2.5 h-2.5 rounded-full bg-[#f07c00]" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p
-                      className={`text-sm font-bold ${
-                        milestone.active
-                          ? 'text-[#f07c00]'
-                          : milestone.done
-                            ? 'text-black'
-                            : 'text-[#737784]'
-                      }`}
-                    >
-                      {milestone.label}
-                    </p>
-                    <p
-                      className={`text-xs mt-0.5 ${
-                        milestone.done || milestone.active ? 'text-[#737784]' : 'text-[#c3c6d5]'
-                      }`}
-                    >
-                      {milestone.detail} • {milestone.date}
-                    </p>
-                  </div>
-                </div>
+          {ordersLoading ? (
+            <p className="text-sm text-[#737784] py-8 text-center">Loading orders…</p>
+          ) : recentOrders.length === 0 ? (
+            <div className="text-center py-10 px-4">
+              <Package className="w-10 h-10 mx-auto mb-3 text-[#c3c6d5]" />
+              <p className="text-sm text-[#737784] mb-4">No orders yet.</p>
+              <Link
+                href="/marketplace"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold text-white"
+                style={{ backgroundColor: BLUE_DARK }}
+              >
+                <Store className="w-4 h-4" />
+                Shop marketplace
+              </Link>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {recentOrders.map((order) => (
+                <RecentOrderRow key={order.id} order={order} />
               ))}
             </div>
+          )}
+        </div>
+
+        {/* Right column */}
+        <div className="space-y-6">
+          {/* Track shipment */}
+          <div className="bg-white rounded-lg border border-[#e5eeff] p-5">
+            <h2 className="text-base font-bold text-black mb-3">Track shipment</h2>
+            <div className="flex gap-2 mb-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#737784]" />
+                <input
+                  value={trackingInput}
+                  onChange={(e) => setTrackingInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && trackingInput.trim()) {
+                      setActiveTracking(trackingInput.trim());
+                    }
+                  }}
+                  placeholder="Tracking ID"
+                  className="w-full pl-9 pr-3 py-2 text-sm border border-[#c3c6d5] rounded-lg bg-[#f8f9ff] focus:outline-none focus:border-[#004aad]"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => trackingInput.trim() && setActiveTracking(trackingInput.trim())}
+                className="px-3 py-2 rounded-lg text-sm font-bold text-white shrink-0"
+                style={{ backgroundColor: BLUE_DARK }}
+              >
+                Track
+              </button>
+            </div>
+
+            {activeTracking ? (
+              <p className="text-xs font-mono font-bold mb-3" style={{ color: BLUE }}>
+                {shipment?.tracking_id || activeTracking}
+              </p>
+            ) : null}
+
+            <div className="space-y-4">
+              {milestones.length === 0 ? (
+                <p className="text-sm text-[#737784]">
+                  {activeTracking
+                    ? 'No tracking updates for this ID yet.'
+                    : 'Enter a tracking ID from your order confirmation.'}
+                </p>
+              ) : (
+                milestones.map((m, i) => (
+                  <div key={i} className="flex gap-3">
+                    <div
+                      className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${
+                        m.active ? 'bg-[#f07c00]' : m.done ? 'bg-[#004aad]' : 'bg-[#e5eeff]'
+                      }`}
+                    />
+                    <div>
+                      <p
+                        className={`text-sm font-bold ${
+                          m.active ? 'text-[#f07c00]' : m.done ? 'text-black' : 'text-[#737784]'
+                        }`}
+                      >
+                        {m.label}
+                      </p>
+                      <p className="text-xs text-[#737784]">
+                        {m.detail} · {m.date}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Sourcing */}
+          <div className="bg-white rounded-lg border border-[#e5eeff] p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base font-bold text-black">Sourcing quotes</h2>
+              <Link
+                href="/dashboard/sourcing"
+                className="text-xs font-bold hover:underline"
+                style={{ color: BLUE }}
+              >
+                View all →
+              </Link>
+            </div>
+            {sourcingLoading ? (
+              <p className="text-sm text-[#737784]">Loading…</p>
+            ) : sourcingRequests.length === 0 ? (
+              <p className="text-sm text-[#737784]">
+                No sourcing requests yet.{' '}
+                <Link
+                  href="/dashboard/sourcing/new"
+                  className="font-bold underline"
+                  style={{ color: BLUE_DARK }}
+                >
+                  Start one
+                </Link>
+              </p>
+            ) : (
+              <ul className="space-y-3">
+                {sourcingRequests.map((req) => (
+                  <li key={req.id}>
+                    <Link
+                      href={`/dashboard/sourcing/${req.id}`}
+                      className="flex items-center justify-between gap-2 group"
+                    >
+                      <span className="text-sm text-[#434653] truncate group-hover:text-black">
+                        {req.title}
+                      </span>
+                      <span className="text-[10px] font-bold text-orange-700 bg-orange-50 px-2 py-0.5 rounded shrink-0">
+                        {req.status}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </div>
       </div>

@@ -2,9 +2,11 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Search, ShoppingCart, Bell, User } from 'lucide-react';
-import { useAuthSession } from '@/hooks/use-auth-session';
+import { Search, ShoppingCart, Bell } from 'lucide-react';
 import { useCart } from '@/hooks/use-cart';
+import { useMounted } from '@/hooks/use-mounted';
+import { useCurrentUser } from '@/lib/api/hooks';
+import UserAccountMenu from '@/components/UserAccountMenu';
 
 const BLUE = '#004aad';
 
@@ -17,9 +19,11 @@ export default function SiteHeader({
   searchPlaceholder = 'Search for products, vendors or categories...',
   className = '',
 }: SiteHeaderProps) {
-  const { ready, isLoggedIn } = useAuthSession();
+  const mounted = useMounted();
+  const { isLoggedIn } = useCurrentUser();
   const { itemCount } = useCart();
   const [menuOpen, setMenuOpen] = useState(false);
+  const showLoggedIn = mounted && isLoggedIn;
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -64,54 +68,50 @@ export default function SiteHeader({
           </button>
           <Link href="/checkout" className="relative p-2 text-[#0b1c30] hover:bg-[#f8f9ff] rounded">
             <ShoppingCart className="w-5 h-5" />
-            {itemCount > 0 && (
+            {mounted && itemCount > 0 && (
               <span className="absolute top-0.5 right-0.5 bg-[#ba1a1a] text-white text-[10px] font-bold rounded-full min-w-[16px] h-4 flex items-center justify-center px-0.5">
                 {itemCount > 99 ? '99+' : itemCount}
               </span>
             )}
           </Link>
 
-          <div className="relative" ref={menuRef}>
-            {ready && isLoggedIn ? (
-              <Link
-                href="/dashboard"
-                className="w-9 h-9 rounded-md overflow-hidden border border-[#c3c6d5] bg-[#eff4ff] flex items-center justify-center hover:opacity-90"
-                aria-label="Go to dashboard"
+          {!mounted ? (
+            <div
+              className="h-9 w-[88px] rounded-md bg-[#eff4ff] border border-[#c3c6d5] animate-pulse"
+              aria-hidden
+            />
+          ) : showLoggedIn ? (
+            <UserAccountMenu />
+          ) : (
+            <div className="relative" ref={menuRef}>
+              <button
+                type="button"
+                onClick={() => setMenuOpen((o) => !o)}
+                className="px-3 py-2 text-xs font-bold rounded-md border border-[#c3c6d5] bg-[#eff4ff] text-[#434653] hover:bg-[#dce9ff]"
+                aria-expanded={menuOpen}
               >
-                <User className="w-5 h-5 text-[#434653]" />
-              </Link>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setMenuOpen((o) => !o)}
-                  className="w-9 h-9 rounded-md overflow-hidden border border-[#c3c6d5] bg-[#eff4ff] flex items-center justify-center hover:bg-[#dce9ff]"
-                  aria-label="Account menu"
-                  aria-expanded={menuOpen}
-                >
-                  <User className="w-5 h-5 text-[#434653]" />
-                </button>
-                {menuOpen && (
-                  <div className="absolute right-0 top-full mt-2 w-40 bg-white border border-[#c3c6d5] rounded-lg shadow-lg py-1 z-50">
-                    <Link
-                      href="/auth/login"
-                      className="block px-4 py-2.5 text-sm font-bold text-[#434653] hover:bg-[#f8f9ff]"
-                      onClick={() => setMenuOpen(false)}
-                    >
-                      Login
-                    </Link>
-                    <Link
-                      href="/auth/register"
-                      className="block px-4 py-2.5 text-sm font-bold text-[#434653] hover:bg-[#f8f9ff]"
-                      onClick={() => setMenuOpen(false)}
-                    >
-                      Sign up
-                    </Link>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
+                Sign in
+              </button>
+              {menuOpen ? (
+                <div className="absolute right-0 top-full mt-2 w-40 bg-white border border-[#c3c6d5] rounded-lg shadow-lg py-1 z-50">
+                  <Link
+                    href="/auth/login"
+                    className="block px-4 py-2.5 text-sm font-bold text-[#434653] hover:bg-[#f8f9ff]"
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    Login
+                  </Link>
+                  <Link
+                    href="/auth/register"
+                    className="block px-4 py-2.5 text-sm font-bold text-[#434653] hover:bg-[#f8f9ff]"
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    Sign up
+                  </Link>
+                </div>
+              ) : null}
+            </div>
+          )}
         </div>
       </div>
     </header>

@@ -1,371 +1,287 @@
-import {
-  mockOrders,
-  mockShipments,
-  mockProducts,
-  mockSourcingRequests,
-  type Order,
-  type Shipment,
-  type Product,
-  type RelatedProduct,
-  type SourcingRequest,
-  type SourcingRequestDetail,
-  type SourcingQuoteReceived,
-  type UserSourcingRequestDetail,
-  sourcingRequestDetailsById,
-  userSourcingRequestDetailsById,
-  adminUserSourcingRequestMap,
-  adminDashboardKpis,
-  adminDashboardSourcingRows,
-  adminLogisticsPipeline,
-  mockInventoryCatalog,
-  mockSourcingOrders,
-  type AdminDashboardKpis,
-  type DashboardSourcingRow,
-  type LogisticsPipelineCard,
-  type InventoryCatalogItem,
-  type SourcingOrderRow,
-  userSourcingSummary,
-  userSourcingRequestsList,
-  userMarketplaceOrders,
-  exploreCategories,
-  marketplaceProducts,
-  adminCategoryCards,
-  adminInventoryItems,
-  adminInventoryKpis,
-  type UserSourcingRequestItem,
-  type AdminCategoryCard,
-  type AdminInventoryItem,
-  type AdminInventoryKpis,
-  type UserMarketplaceOrder,
-  type ExploreCategory,
-  type MarketplaceProduct,
-} from './mock-data';
+import type {
+  CreateSourcingRequestBody,
+  HubCode,
+  SourcingShippingMethod,
+  SourcingUnit,
+  SourcingUrgency,
+  UpsertCategoryRequest,
+  UpsertOfficialQuoteRequest,
+} from '@/lib/contracts';
+import type {
+  AdminCategoryCard,
+  AdminDashboardKpis,
+  AdminInventoryItem,
+  AdminInventoryKpis,
+  DashboardSourcingRow,
+  ExploreCategory,
+  LogisticsPipelineCard,
+  MarketplaceProduct,
+  Order,
+  Product,
+  RelatedProduct,
+  Shipment,
+  AdminMarketplaceOrderRow,
+  SourcingOrderRow,
+  SourcingRequest,
+  SourcingRequestDetail,
+  UserMarketplaceOrder,
+  UserSourcingRequestDetail,
+  UserSourcingRequestItem,
+} from '@/lib/types';
+import * as api from '@/lib/api/services';
 
-function delay(ms = 80): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+export type { SourcingRequestFilters } from '@/lib/api/query-keys';
+import type { SourcingRequestFilters } from '@/lib/api/query-keys';
+
+export async function getRecentOrders(limit = 5): Promise<
+  (Order & { tracking_id?: string | null })[]
+> {
+  const orders = await api.apiGetUserMarketplaceOrders();
+  return orders.slice(0, limit).map((o) => ({
+    id: o.id,
+    order_number: o.order_number,
+    tracking_id: o.tracking_id,
+    customer_name: o.vendor,
+    status: mapOrderStatus(o.status),
+    origin: hubLabel(o.origin_flag),
+    eta: o.date_value,
+    created_at: new Date().toISOString(),
+  }));
 }
 
-export async function getRecentOrders(limit = 5): Promise<Order[]> {
-  await delay();
-  return [...mockOrders]
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-    .slice(0, limit);
+function mapOrderStatus(status: string): string {
+  const s = status.toUpperCase();
+  if (s.includes('TRANSIT')) return 'dispatched';
+  if (s.includes('DELIVERED')) return 'delivered';
+  if (s.includes('PROCESS')) return 'processing';
+  return 'confirmed';
+}
+
+function hubLabel(code: string): string {
+  if (code === 'CN') return 'China';
+  if (code === 'AE') return 'Dubai';
+  if (code === 'KE') return 'Kenya';
+  return code;
 }
 
 export async function getShipmentByTrackingId(trackingId: string): Promise<Shipment | null> {
-  await delay();
-  return mockShipments.find((s) => s.tracking_id === trackingId) ?? null;
+  return api.apiGetShipment(trackingId);
+}
+
+export async function listShipments(): Promise<Shipment[]> {
+  return api.apiListShipments();
 }
 
 export async function getProductById(id: string): Promise<Product | null> {
-  await delay();
-  return mockProducts.find((p) => p.id === id) ?? null;
+  const dto = await api.apiGetProduct(id);
+  return dto as Product | null;
 }
 
 export async function getRelatedProducts(excludeId: string, limit = 4): Promise<RelatedProduct[]> {
-  await delay();
-  return mockProducts
-    .filter((p) => p.id !== excludeId)
-    .slice(0, limit)
-    .map(({ id, name, price, origin, image_url }) => ({ id, name, price, origin, image_url }));
-}
-
-export interface SourcingRequestFilters {
-  market?: string;
-  statuses?: string[];
+  const rows = await api.apiGetRelatedProducts(excludeId, limit);
+  return rows.map(({ id, name, price, origin, image_url }) => ({
+    id,
+    name,
+    price,
+    origin,
+    image_url,
+  }));
 }
 
 export async function getSourcingRequests(
-  filters: SourcingRequestFilters = {}
+  filters: SourcingRequestFilters = {},
 ): Promise<SourcingRequest[]> {
-  await delay();
-  let results = [...mockSourcingRequests].sort(
-    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-  );
-
-  if (filters.market && filters.market !== 'all') {
-    results = results.filter((r) => r.market === filters.market);
-  }
-  if (filters.statuses && filters.statuses.length > 0) {
-    results = results.filter((r) => filters.statuses!.includes(r.status));
-  }
-
-  return results;
-}
-
-function buildAdminSourcingDetail(req: SourcingRequest): SourcingRequestDetail {
-  const extra = sourcingRequestDetailsById[req.id];
-  return {
-    ...req,
-    quantity: extra?.quantity ?? '—',
-    material_grade: extra?.material_grade,
-    voltage_range: extra?.voltage_range,
-    budget_total: extra?.budget_total ?? '—',
-    budget_subtitle: extra?.budget_subtitle ?? 'Estimated Total',
-    regional_targets: extra?.regional_targets ?? [
-      { code: req.market, label: req.destination_label },
-    ],
-    attachments: extra?.attachments ?? [],
-    quotes: extra?.quotes ?? [],
-    quote_date: extra?.quote_date,
-    destination_port: extra?.destination_port ?? req.destination,
-    estimated_budget_range: extra?.estimated_budget_range,
-    requester_location: extra?.requester_location ?? req.destination,
-    product_image_url: extra?.product_image_url ?? req.reference_images[0],
-    product_title: extra?.product_title ?? req.product_title,
-    description: extra?.description ?? req.description,
+  const query: Record<string, string | number> = {
+    page: 1,
+    page_size: 50,
   };
+  if (filters.market && filters.market !== 'all') query.market = filters.market;
+  if (filters.statuses?.length) query.status = filters.statuses.join(',');
+  const res = await api.apiGetAdminSourcingRequests(query);
+  return res.data as unknown as SourcingRequest[];
 }
 
 export async function getSourcingRequestById(
   id: string,
 ): Promise<SourcingRequestDetail | null> {
-  await delay();
-  const req = mockSourcingRequests.find((r) => r.id === id);
-  if (!req) return null;
-  return buildAdminSourcingDetail(req);
+  return (await api.apiGetAdminSourcingDetail(id)) as SourcingRequestDetail | null;
 }
 
-export type AdminOfficialQuoteInput = {
-  unit_price: string;
-  shipping_cost: string;
-  transport: string;
-  lead_time_days: string;
-  notes: string;
-};
-
-function formatUsd(value: string): string {
-  const trimmed = value.trim();
-  if (!trimmed) return '';
-  return trimmed.startsWith('$') ? trimmed : `$${trimmed}`;
-}
+export type AdminOfficialQuoteInput = UpsertOfficialQuoteRequest;
 
 export async function saveAdminOfficialQuote(
   requestId: string,
   input: AdminOfficialQuoteInput,
 ): Promise<SourcingRequestDetail | null> {
-  await delay();
-  const req = mockSourcingRequests.find((r) => r.id === requestId);
-  if (!req) return null;
-
-  const existing = sourcingRequestDetailsById[requestId]?.quotes?.[0];
-  const quote: SourcingQuoteReceived = {
-    id: existing?.id ?? `q-${Date.now()}`,
-    unit_price: formatUsd(input.unit_price),
-    shipping_cost: formatUsd(input.shipping_cost) || undefined,
-    lead_time: `${input.lead_time_days.trim()} Days`,
-    shipment: input.transport.trim(),
-    notes: input.notes.trim(),
-    official: true,
-  };
-
-  if (!sourcingRequestDetailsById[requestId]) {
-    sourcingRequestDetailsById[requestId] = {};
-  }
-  sourcingRequestDetailsById[requestId].quotes = [quote];
-
-  if (req.status === 'pending') {
-    req.status = 'quoted';
-  }
-
-  const userId = adminUserSourcingRequestMap[requestId];
-  if (userId && userSourcingRequestDetailsById[userId]) {
-    userSourcingRequestDetailsById[userId].quotes = [{ ...quote }];
-    if (userSourcingRequestDetailsById[userId].status === 'PENDING QUOTE') {
-      userSourcingRequestDetailsById[userId].status = 'QUOTED';
-      userSourcingRequestDetailsById[userId].status_variant = 'orange';
-    }
-  }
-
-  return buildAdminSourcingDetail(req);
+  await api.apiSaveOfficialQuote(requestId, input);
+  return getSourcingRequestById(requestId);
 }
 
 export async function getUserSourcingRequestById(
   id: string,
 ): Promise<UserSourcingRequestDetail | null> {
-  await delay();
-  const detail = userSourcingRequestDetailsById[id];
-  if (detail) return { ...detail };
-  const listItem = userSourcingRequestsList.find((r) => r.id === id);
-  if (!listItem) return null;
-  return {
-    id: listItem.id,
-    request_number: listItem.request_number,
-    title: listItem.title,
-    origin: listItem.origin,
-    status: listItem.status,
-    status_variant: listItem.status_variant,
-    description: 'Request details will appear here once your sourcing team reviews the submission.',
-    quantity: '—',
-    budget_total: listItem.price,
-    budget_subtitle: 'Estimated Total',
-    regional_targets: [{ code: listItem.origin, label: listItem.origin }],
-    attachments: [],
-    quotes: [],
-  };
+  return (await api.apiGetUserSourcingDetail(id)) as UserSourcingRequestDetail | null;
 }
 
-export async function getInventoryCatalog(): Promise<InventoryCatalogItem[]> {
-  await delay();
-  return [...mockInventoryCatalog];
-}
-
-export async function getSourcingOrders(): Promise<SourcingOrderRow[]> {
-  await delay();
-  return [...mockSourcingOrders];
+export async function getAdminMarketplaceOrders(): Promise<AdminMarketplaceOrderRow[]> {
+  return api.apiGetAdminMarketplaceOrders();
 }
 
 export async function getUserSourcingDashboard(): Promise<{
-  summary: typeof userSourcingSummary;
+  summary: { active: number; pending_quotes: number; procured_total: string };
   requests: UserSourcingRequestItem[];
 }> {
-  await delay();
-  return { summary: userSourcingSummary, requests: userSourcingRequestsList };
+  const res = await api.apiGetUserSourcingDashboard();
+  return {
+    summary: res.summary,
+    requests: res.requests as UserSourcingRequestItem[],
+  };
 }
 
-export type OriginMarket = 'CN' | 'AE' | 'KE';
+export type OriginMarket = HubCode;
 
 export interface CreateSourcingRequestInput {
   productName: string;
   category: string;
-  urgency: 'standard' | 'express';
+  urgency: SourcingUrgency;
   description: string;
-  origin: OriginMarket;
+  origin: HubCode;
   destination: string;
   quantity: string;
   unit: string;
   targetDate: string;
-  shippingMethod: 'air' | 'sea' | 'flexible';
+  shippingMethod: SourcingShippingMethod;
   budget?: string;
 }
 
 export async function createUserSourcingRequest(
   input: CreateSourcingRequestInput,
 ): Promise<UserSourcingRequestItem> {
-  await delay(400);
-
-  const requestNumber = `DBK-${Math.floor(90000 + Math.random() * 9999)}`;
-  const newRequest: UserSourcingRequestItem = {
-    id: `usr-${Date.now()}`,
-    request_number: requestNumber,
-    title: input.productName,
+  const body: CreateSourcingRequestBody = {
+    product_name: input.productName,
+    category: input.category,
+    urgency: input.urgency,
+    description: input.description,
     origin: input.origin,
-    price: 'Pending quote',
-    status: 'PENDING',
-    status_variant: 'gray',
+    destination: input.destination,
+    quantity: input.quantity,
+    unit: input.unit as CreateSourcingRequestBody['unit'],
+    target_date: input.targetDate,
+    shipping_method: input.shippingMethod,
+    budget: input.budget,
+    accept_terms: true,
   };
-
-  userSourcingRequestsList.unshift(newRequest);
-  userSourcingSummary.active += 1;
-  userSourcingSummary.pending_quotes += 1;
-
-  return newRequest;
+  return api.apiCreateSourcingRequest(body) as Promise<UserSourcingRequestItem>;
 }
 
 export async function getUserMarketplaceOrders(): Promise<UserMarketplaceOrder[]> {
-  await delay();
-  return [...userMarketplaceOrders];
+  return api.apiGetUserMarketplaceOrders();
 }
 
-function inventorySkuCountForCategory(categoryName: string): number {
-  return adminInventoryItems.filter((i) => i.category === categoryName).length;
-}
-
-export type AdminCategoryFormInput = {
-  id?: string;
-  name: string;
-  description: string;
-  origins: AdminCategoryCard['origins'];
-  image_url: string;
-  status: AdminCategoryCard['status'];
-};
-
-function storefrontOrigin(origins: string[]): ExploreCategory['origin'] {
-  const hubOrder: ExploreCategory['origin'][] = ['KE', 'AE', 'CN'];
-  return hubOrder.find((h) => origins.includes(h)) ?? (origins[0] as ExploreCategory['origin']) ?? 'KE';
-}
-
-const DEFAULT_CATEGORY_IMAGE =
-  'https://images.pexels.com/photos/424196/pexels-photo-424196.jpeg?auto=compress&cs=tinysrgb&w=600';
+export type AdminCategoryFormInput = UpsertCategoryRequest & { id?: string };
 
 export async function saveAdminCategory(
   input: AdminCategoryFormInput,
 ): Promise<AdminCategoryCard> {
-  await delay();
-  const image_url = input.image_url || DEFAULT_CATEGORY_IMAGE;
-  const skuCount = inventorySkuCountForCategory(input.name);
-
-  if (input.id) {
-    const idx = adminCategoryCards.findIndex((c) => c.id === input.id);
-    if (idx === -1) throw new Error('Category not found');
-    const existing = adminCategoryCards[idx];
-    const updated: AdminCategoryCard = {
-      ...existing,
-      name: input.name,
-      description: input.description,
-      origins: [...input.origins],
-      image_url,
-      status: input.status,
-      total_skus: skuCount > 0 ? skuCount : existing.total_skus,
-    };
-    adminCategoryCards[idx] = updated;
-    return updated;
-  }
-
-  const created: AdminCategoryCard = {
-    id: `ac-${Date.now()}`,
-    name: input.name,
-    description: input.description,
-    origins: [...input.origins],
-    trend: 'Stable',
-    trend_variant: 'stable',
-    total_skus: skuCount,
-    vendors: 0,
-    image_url,
-    status: input.status,
-  };
-  adminCategoryCards.push(created);
-  return created;
+  return api.apiSaveAdminCategory(input) as Promise<AdminCategoryCard>;
 }
 
-export async function getExploreCategories(): Promise<ExploreCategory[]> {
-  await delay();
-  const published = adminCategoryCards.filter((c) => c.status === 'published');
-  if (published.length === 0) return [...exploreCategories];
-  return published.map((c) => ({
-    id: c.id,
-    name: c.name,
-    origin: storefrontOrigin(c.origins),
-    product_count: inventorySkuCountForCategory(c.name) || c.total_skus,
-    image_url: c.image_url,
+export async function getHomeFeed(): Promise<{
+  categories: ExploreCategory[];
+  products: MarketplaceProduct[];
+}> {
+  const res = await api.apiGetHomeFeed();
+  return {
+    categories: (res?.categories ?? []).map((c) => ({
+      id: c.id,
+      name: c.name,
+      origin: c.origin,
+      product_count: c.product_count,
+      image_url: c.image_url,
+    })),
+    products: (res?.products ?? []).map((p) => ({
+      id: p.id,
+      productId: p.product_id,
+      name: p.name,
+      vendor: p.vendor,
+      origin: p.origin,
+      price_usd: p.price_usd,
+      price_kes: p.price_kes,
+      price_aed: p.price_aed,
+      image_url: p.image_url,
+      cta: p.cta,
+    })),
+  };
+}
+
+export async function getExploreCategories(page = 1, pageSize = 12): Promise<{
+  categories: ExploreCategory[];
+  meta: { page: number; page_size: number; total: number };
+}> {
+  const res = await api.apiGetCategories({ page, page_size: pageSize });
+  return {
+    categories: res.data.map((c) => ({
+      id: c.id,
+      name: c.name,
+      origin: c.origin,
+      product_count: c.product_count,
+      image_url: c.image_url,
+    })),
+    meta: res.meta,
+  };
+}
+
+export async function getAdminAnalytics() {
+  return api.apiGetAdminAnalytics();
+}
+
+export async function listMyShipments(): Promise<Shipment[]> {
+  return api.apiGetMyShipments();
+}
+
+export async function getMarketplaceProducts(
+  hub?: string,
+  category?: string,
+): Promise<MarketplaceProduct[]> {
+  const query: Record<string, string | number> = { page_size: 48 };
+  if (hub && hub !== 'all') query.hub = hub;
+  if (category) query.category = category;
+  const res = await api.apiGetMarketplaceProducts(query);
+  return (res?.data ?? []).map((p) => ({
+    id: p.id,
+    productId: p.product_id,
+    name: p.name,
+    vendor: p.vendor,
+    origin: p.origin,
+    price_usd: p.price_usd,
+    price_kes: p.price_kes,
+    price_aed: p.price_aed,
+    image_url: p.image_url,
+    cta: p.cta,
   }));
 }
 
-export async function getMarketplaceProducts(): Promise<MarketplaceProduct[]> {
-  await delay();
-  return [...marketplaceProducts];
-}
-
 export async function getAdminCategoryCards(): Promise<AdminCategoryCard[]> {
-  await delay();
-  return [...adminCategoryCards];
+  return api.apiGetAdminCategories() as Promise<AdminCategoryCard[]>;
 }
 
-export async function getAdminCategoryById(
-  id: string,
-): Promise<AdminCategoryCard | null> {
-  await delay();
-  return adminCategoryCards.find((c) => c.id === id) ?? null;
+export async function getAdminCategoryById(id: string): Promise<AdminCategoryCard | null> {
+  return api.apiGetAdminCategory(id) as Promise<AdminCategoryCard | null>;
 }
 
-export async function getAdminInventoryItems(): Promise<AdminInventoryItem[]> {
-  await delay();
-  return [...adminInventoryItems];
+export async function getAdminInventoryItems(search?: string): Promise<AdminInventoryItem[]> {
+  const res = await api.apiListAdminInventory(
+    search ? { search, page_size: 100 } : { page_size: 100 },
+  );
+  return res.data as AdminInventoryItem[];
+}
+
+export async function getAdminInventoryProduct(id: string) {
+  return api.apiGetAdminInventoryProduct(id);
 }
 
 export async function getAdminInventoryKpis(): Promise<AdminInventoryKpis> {
-  await delay();
-  return { ...adminInventoryKpis };
+  return api.apiGetAdminInventoryKpis() as Promise<AdminInventoryKpis>;
 }
 
 export async function getAdminDashboard(): Promise<{
@@ -373,10 +289,10 @@ export async function getAdminDashboard(): Promise<{
   sourcingRows: DashboardSourcingRow[];
   logistics: LogisticsPipelineCard[];
 }> {
-  await delay();
+  const data = await api.apiGetAdminDashboard();
   return {
-    kpis: adminDashboardKpis,
-    sourcingRows: adminDashboardSourcingRows,
-    logistics: adminLogisticsPipeline,
+    kpis: data.kpis,
+    sourcingRows: data.sourcing_rows,
+    logistics: data.logistics,
   };
 }

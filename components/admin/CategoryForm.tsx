@@ -4,12 +4,9 @@ import { useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Upload, Check, Clock } from 'lucide-react';
-import type { AdminCategoryCard } from '@/lib/mock-data';
-import { saveAdminCategory } from '@/lib/data';
+import type { AdminCategoryCard } from '@/lib/types';
+import { useSaveAdminCategoryMutation, useUploadImageMutation } from '@/lib/api/hooks';
 import AdminPageFooter from '@/components/admin/AdminPageFooter';
-
-const DEFAULT_CATEGORY_IMAGE =
-  'https://images.pexels.com/photos/424196/pexels-photo-424196.jpeg?auto=compress&cs=tinysrgb&w=600';
 
 const BLUE = '#004aad';
 const BLUE_DARK = '#00357f';
@@ -60,7 +57,8 @@ export default function CategoryForm({ mode, categoryId, initial }: CategoryForm
     initial ? fromCategory(initial) : emptyValues(),
   );
   const [saved, setSaved] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const saveCategory = useSaveAdminCategoryMutation();
+  const uploadImage = useUploadImageMutation();
 
   const title = mode === 'create' ? 'Create Product Category' : 'Edit Product Category';
   const breadcrumbCurrent = mode === 'create' ? 'New Category' : 'Edit Category';
@@ -73,11 +71,15 @@ export default function CategoryForm({ mode, categoryId, initial }: CategoryForm
     });
   }, []);
 
-  const onImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const url = URL.createObjectURL(file);
-    setValues((v) => ({ ...v, imageUrl: url }));
+    try {
+      const { url } = await uploadImage.mutateAsync(file);
+      setValues((v) => ({ ...v, imageUrl: url }));
+    } catch {
+      /* upload failed */
+    }
   };
 
   const canPublish =
@@ -86,29 +88,26 @@ export default function CategoryForm({ mode, categoryId, initial }: CategoryForm
     values.origins.length > 0;
 
   async function handleSave(publish: boolean) {
-    if (!canPublish || saving) return;
+    if (!canPublish || saveCategory.isPending) return;
     const status = publish ? 'published' : 'draft';
-    setSaving(true);
     try {
-      await saveAdminCategory({
+      await saveCategory.mutateAsync({
         id: categoryId,
         name: values.name.trim(),
         description: values.description.trim(),
         origins: values.origins as AdminCategoryCard['origins'],
-        image_url: values.imageUrl ?? DEFAULT_CATEGORY_IMAGE,
+        image_url: values.imageUrl ?? '',
         status,
       });
       setValues((v) => ({ ...v, status }));
       setSaved(true);
       setTimeout(() => router.push('/admin/categories'), 600);
-    } finally {
-      setSaving(false);
+    } catch {
+      /* mutation error */
     }
   }
 
-  const previewImage =
-    values.imageUrl ??
-    'https://images.pexels.com/photos/424196/pexels-photo-424196.jpeg?auto=compress&cs=tinysrgb&w=400';
+  const previewImage = values.imageUrl;
 
   return (
     <div className="flex flex-col min-h-full bg-[#f8f9ff]">
@@ -263,7 +262,7 @@ export default function CategoryForm({ mode, categoryId, initial }: CategoryForm
               </Link>
               <button
                 type="button"
-                disabled={!canPublish || saving}
+                disabled={!canPublish || saveCategory.isPending}
                 onClick={() => handleSave(false)}
                 className="px-5 py-2.5 text-xs font-bold border-2 rounded-lg bg-white disabled:opacity-50"
                 style={{ borderColor: BLUE, color: BLUE }}
@@ -272,11 +271,11 @@ export default function CategoryForm({ mode, categoryId, initial }: CategoryForm
               </button>
               <button
                 type="submit"
-                disabled={!canPublish || saving}
+                disabled={!canPublish || saveCategory.isPending}
                 className="px-5 py-2.5 text-xs font-bold rounded-lg text-white disabled:opacity-50"
                 style={{ backgroundColor: BLUE_DARK }}
               >
-                {saving ? 'Saving…' : 'Publish Category'}
+                {saveCategory.isPending ? 'Saving…' : 'Publish Category'}
               </button>
             </div>
           </div>
@@ -285,8 +284,12 @@ export default function CategoryForm({ mode, categoryId, initial }: CategoryForm
             <section className="bg-white border border-[#e5eeff] rounded-lg p-5">
               <h2 className="text-sm font-bold text-black mb-4">Live Preview</h2>
               <div className="border border-[#e5eeff] rounded-lg overflow-hidden">
-                <div className="h-32 bg-[#eff4ff]">
-                  <img src={previewImage} alt="" className="w-full h-full object-cover" />
+                <div className="h-32 bg-[#eff4ff] flex items-center justify-center">
+                  {previewImage ? (
+                    <img src={previewImage} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-xs text-[#737784]">Upload an image</span>
+                  )}
                 </div>
                 <div className="p-4">
                   <div className="flex gap-1 mb-2">
@@ -312,27 +315,6 @@ export default function CategoryForm({ mode, categoryId, initial }: CategoryForm
                   </button>
                 </div>
               </div>
-            </section>
-
-            <section className="bg-white border border-[#e5eeff] rounded-lg p-5">
-              <h2 className="text-sm font-bold text-black mb-4">Deployment Status</h2>
-              <ul className="space-y-3 text-sm">
-                <li className="flex items-center gap-2 text-[#434653]">
-                  <Check
-                    className="w-4 h-4 shrink-0"
-                    style={{ color: values.name && values.description ? BLUE : '#c3c6d5' }}
-                  />
-                  Content Validation
-                </li>
-                <li className="flex items-center gap-2 text-orange-600 font-medium">
-                  <span className="w-4 h-4 rounded-full border-2 border-orange-500 shrink-0" />
-                  Regional Localization — In Progress
-                </li>
-                <li className="flex items-center gap-2 text-[#737784]">
-                  <Clock className="w-4 h-4 shrink-0" />
-                  Global CDN Sync
-                </li>
-              </ul>
             </section>
           </div>
         </form>

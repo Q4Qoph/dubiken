@@ -1,6 +1,7 @@
 import './globals.css';
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
+import { QueryProvider } from '@/providers/query-provider';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -19,7 +20,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`${inter.variable} ${inter.className} font-sans`}>{children}</body>
+      <body className={`${inter.variable} ${inter.className} font-sans`}>
+        <QueryProvider>{children}</QueryProvider>
+      </body>
     </html>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import {
   ChevronDown,
@@ -10,8 +10,8 @@ import {
   CheckCircle2,
   Loader2,
 } from 'lucide-react';
-import { getUserMarketplaceOrders, getUserSourcingDashboard } from '@/lib/data';
-import type { UserMarketplaceOrder, UserSourcingRequestItem } from '@/lib/mock-data';
+import { useUserMarketplaceOrders, useUserSourcingDashboard } from '@/lib/api/hooks';
+import type { UserMarketplaceOrder, UserSourcingRequestItem } from '@/lib/types';
 
 const BLUE = '#004aad';
 const BLUE_DARK = '#00357f';
@@ -65,7 +65,9 @@ function OrderCard({ order }: { order: UserMarketplaceOrder }) {
           <p className="text-lg font-bold" style={{ color: BLUE_DARK }}>
             {order.price_kes}
           </p>
-          <p className="text-xs text-[#737784]">{order.price_secondary}</p>
+          {order.price_secondary ? (
+            <p className="text-xs text-[#737784]">{order.price_secondary}</p>
+          ) : null}
           <p className="text-[10px] text-[#737784] mt-1">
             {order.date_label}: <span className="font-semibold text-black">{order.date_value}</span>
           </p>
@@ -97,14 +99,10 @@ function OrderCard({ order }: { order: UserMarketplaceOrder }) {
 
 export default function UserOrdersPage() {
   const [tab, setTab] = useState<'marketplace' | 'sourcing'>('marketplace');
-  const [orders, setOrders] = useState<UserMarketplaceOrder[]>([]);
-  const [sourcing, setSourcing] = useState<UserSourcingRequestItem[]>([]);
   const [page, setPage] = useState(1);
-
-  useEffect(() => {
-    getUserMarketplaceOrders().then(setOrders);
-    getUserSourcingDashboard().then((d) => setSourcing(d.requests));
-  }, []);
+  const { data: orders = [] } = useUserMarketplaceOrders();
+  const { data: sourcingData } = useUserSourcingDashboard();
+  const sourcing = sourcingData?.requests ?? [];
 
   return (
     <div className="p-6 lg:p-8 bg-[#f8f9ff] min-h-full">

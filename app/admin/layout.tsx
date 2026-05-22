@@ -2,12 +2,12 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useCurrentUser } from '@/lib/api/hooks';
 import {
   LayoutDashboard,
   Package,
   ShoppingCart,
   Truck,
-  BarChart3,
   FileText,
   Tags,
   Settings,
@@ -27,11 +27,11 @@ const navItems = [
   { label: 'Categories', href: '/admin/categories', icon: Tags },
   { label: 'Orders', href: '/admin/orders', icon: ShoppingCart },
   { label: 'Logistics', href: '/admin/logistics', icon: Truck },
-  { label: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { displayName, company, initials, role } = useCurrentUser();
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f0f4f9]">
@@ -72,12 +72,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         >
           <div className="p-4 border-b border-[#e2e8f0] shrink-0">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-[#1a2d5a] flex items-center justify-center text-white shrink-0">
-                <Shield className="w-5 h-5" />
+              <div className="w-9 h-9 rounded-lg bg-[#1a2d5a] flex items-center justify-center text-white shrink-0 text-xs font-bold">
+                {initials}
               </div>
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-[#1a2d5a] truncate">Admin Panel</p>
-                <p className="text-xs text-[#718096] truncate">Global Operations</p>
+                <p className="text-sm font-semibold text-[#1a2d5a] truncate">{displayName}</p>
+                <p className="text-xs text-[#718096] truncate">
+                  {role === 'admin' ? company || 'Admin' : 'Operations'}
+                </p>
               </div>
             </div>
           </div>

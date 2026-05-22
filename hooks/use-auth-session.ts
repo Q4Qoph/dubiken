@@ -6,7 +6,6 @@ import {
   clearAuthSession,
   getAuthSession,
   isAuthSessionActive,
-  setAuthSession,
   type AuthSession,
 } from '@/lib/auth-session';
 
@@ -34,7 +33,6 @@ export function useAuthSession() {
     ready,
     session,
     isLoggedIn: ready && isAuthSessionActive(),
-    login: setAuthSession,
     logout: clearAuthSession,
   };
 }

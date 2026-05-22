@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import SiteHeader from '@/components/SiteHeader';
 import {
@@ -12,8 +12,9 @@ import {
   Check,
 } from 'lucide-react';
 import SiteFooter from '@/components/SiteFooter';
-import { getProductById, getRelatedProducts } from '@/lib/data';
+import { useProduct, useRelatedProducts } from '@/lib/api/hooks';
 import { useCart } from '@/hooks/use-cart';
+import { formatPrice } from '@/lib/currency';
 
 const BLUE = '#004aad';
 const SECTION_BG = '#eff4ff';
@@ -32,6 +33,10 @@ interface Product {
   currency_ke: string;
   currency_ae: string;
   description: string;
+  vendor: string;
+  category: string;
+  review_count: number;
+  logistics_note: string;
 }
 
 function SpecRow({ label, value }: { label: string; value: string }) {
@@ -46,24 +51,15 @@ function SpecRow({ label, value }: { label: string; value: string }) {
 }
 
 export default function ProductDetailPage({ params }: { params: { id: string } }) {
-  const [product, setProduct] = useState<Product | null>(null);
-  const [relatedProducts, setRelatedProducts] = useState<
-    Awaited<ReturnType<typeof getRelatedProducts>>
-  >([]);
+  const { data: product, isLoading } = useProduct(params.id);
+  const { data: relatedProducts = [] } = useRelatedProducts(params.id, 4);
   const [activeImage, setActiveImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [activeTab, setActiveTab] = useState<'specs' | 'logistics' | 'reviews'>('specs');
   const [shippingDest, setShippingDest] = useState<'mombasa' | 'jebel'>('mombasa');
   const { addItem } = useCart();
 
-  useEffect(() => {
-    getProductById(params.id).then((data) => {
-      if (data) setProduct(data);
-    });
-    getRelatedProducts(params.id, 4).then(setRelatedProducts);
-  }, [params.id]);
-
-  if (!product) {
+  if (isLoading || !product) {
     return (
       <div className="min-h-screen bg-white flex flex-col">
         <SiteHeader />
@@ -80,19 +76,17 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
   const images =
     product.images?.length > 0 ? product.images : [product.image_url].filter(Boolean);
 
-  const techSpecs = [
-    { label: 'Nominal AC Power', value: product.specs.nominalACPower },
-    { label: 'Max Input Voltage', value: product.specs.maxInputVoltage },
-    { label: 'Efficiency', value: product.specs.efficiency },
-    { label: 'Cooling System', value: product.specs.coolingSystem },
-  ].filter((s) => s.value);
-
-  const buildSpecs = [
-    { label: 'Protection Class', value: product.specs.protectionClass },
-    { label: 'Weight', value: product.specs.weight },
-    { label: 'Certification', value: product.specs.certification },
-    { label: 'Warranty', value: product.specs.warranty },
-  ].filter((s) => s.value);
+  const specEntries = Object.entries(product.specs ?? {}).filter(([, v]) => v?.trim());
+  const mid = Math.ceil(specEntries.length / 2);
+  const techSpecs = specEntries.slice(0, mid).map(([label, value]) => ({
+    label: label.replace(/([A-Z])/g, ' $1').replace(/^./, (s) => s.toUpperCase()),
+    value,
+  }));
+  const buildSpecs = specEntries.slice(mid).map(([label, value]) => ({
+    label: label.replace(/([A-Z])/g, ' $1').replace(/^./, (s) => s.toUpperCase()),
+    value,
+  }));
+  const reviewCount = product.review_count ?? 0;
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
@@ -103,14 +97,14 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
         <div className="max-w-[1280px] mx-auto px-6 py-2.5">
           <nav className="flex items-center gap-1.5 text-xs text-[#737784]">
             <Link href="/" className="hover:underline">
-              Industrial Sourcing
+              Home
             </Link>
             <ChevronRight className="w-3 h-3" />
-            <Link href="/" className="hover:underline">
-              Energy Systems
+            <Link href="/categories" className="hover:underline">
+              {product.category || 'Categories'}
             </Link>
             <ChevronRight className="w-3 h-3" />
-            <span className="text-[#434653]">Solar Inverters</span>
+            <span className="text-[#434653]">{product.name}</span>
           </nav>
         </div>
       </div>
@@ -159,12 +153,12 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
 
               <div className="flex flex-wrap items-baseline gap-3 mb-1">
                 <span className="text-3xl font-bold" style={{ color: BLUE }}>
-                  ${product.price.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  {formatPrice(product.price)}
                 </span>
                 {product.original_price && (
                   <>
                     <span className="text-lg text-[#737784] line-through font-normal">
-                      ${product.original_price.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      {formatPrice(product.original_price)}
                     </span>
                     {savePct && (
                       <span
@@ -177,47 +171,7 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
                   </>
                 )}
               </div>
-              <p className="text-sm text-[#737784] mb-6">
-                Approx. {product.currency_ke} / {product.currency_ae}
-              </p>
-
               {/* Shipping — light blue box */}
-              <div className="rounded-lg p-4 mb-5 border border-[#dce9ff]" style={{ backgroundColor: SECTION_BG }}>
-                <p className="text-sm font-bold text-black mb-3">Shipping Destination</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setShippingDest('mombasa')}
-                    className={`relative flex items-start gap-2 border rounded p-3 text-left bg-white ${
-                      shippingDest === 'mombasa' ? 'border-[#004aad] border-2' : 'border-[#c3c6d5]'
-                    }`}
-                  >
-                    {shippingDest === 'mombasa' && (
-                      <Check className="w-4 h-4 absolute top-2 right-2" style={{ color: BLUE }} />
-                    )}
-                    <div>
-                      <p className="text-xs font-bold text-black">Mombasa, KE</p>
-                      <p className="text-xs text-[#737784]">14-21 Days</p>
-                    </div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShippingDest('jebel')}
-                    className={`relative flex items-start gap-2 border rounded p-3 text-left bg-white ${
-                      shippingDest === 'jebel' ? 'border-[#004aad] border-2' : 'border-[#c3c6d5]'
-                    }`}
-                  >
-                    {shippingDest === 'jebel' && (
-                      <Check className="w-4 h-4 absolute top-2 right-2" style={{ color: BLUE }} />
-                    )}
-                    <div>
-                      <p className="text-xs font-bold text-black">Jebel Ali, AE</p>
-                      <p className="text-xs text-[#737784]">5-7 Days</p>
-                    </div>
-                  </button>
-                </div>
-              </div>
-
               <p className="text-sm font-medium text-black mb-2">Quantity</p>
               <div className="flex items-center mb-6 w-fit border border-[#c3c6d5] rounded overflow-hidden">
                 <button
@@ -266,17 +220,6 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
                   ADD TO CART
                 </button>
               </div>
-
-              <div className="space-y-2.5 pt-2 border-t border-[#e5eeff]">
-                <div className="flex items-center gap-2 text-xs text-[#434653]">
-                  <ShieldCheck className="w-4 h-4 shrink-0" style={{ color: BLUE }} />
-                  <span>Verified Manufacturer: Suzhou Solar-Tech Ltd.</span>
-                </div>
-                <div className="flex items-center gap-2 text-xs text-[#434653]">
-                  <Truck className="w-4 h-4 shrink-0" style={{ color: BLUE }} />
-                  <span>Full logistics &amp; customs clearing included</span>
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -290,7 +233,7 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
               [
                 { id: 'specs' as const, label: 'Specifications' },
                 { id: 'logistics' as const, label: 'Logistics Details' },
-                { id: 'reviews' as const, label: 'Reviews (12)' },
+                { id: 'reviews' as const, label: `Reviews (${reviewCount})` },
               ] as const
             ).map((tab) => (
               <button
@@ -310,32 +253,42 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
 
           {activeTab === 'specs' && (
             <div className="py-10">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20">
-                <div>
-                  <h3 className="text-base font-bold text-black mb-4">Technical Performance</h3>
-                  {techSpecs.map((s) => (
-                    <SpecRow key={s.label} label={s.label} value={s.value!} />
-                  ))}
+              {specEntries.length === 0 ? (
+                <p className="text-sm text-[#737784]">No specifications listed for this product.</p>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20">
+                  <div>
+                    <h3 className="text-base font-bold text-black mb-4">Specifications</h3>
+                    {techSpecs.map((s) => (
+                      <SpecRow key={s.label} label={s.label} value={s.value} />
+                    ))}
+                  </div>
+                  {buildSpecs.length > 0 ? (
+                    <div>
+                      <h3 className="text-base font-bold text-black mb-4">Additional details</h3>
+                      {buildSpecs.map((s) => (
+                        <SpecRow key={s.label} label={s.label} value={s.value} />
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
-                <div>
-                  <h3 className="text-base font-bold text-black mb-4">Build &amp; Compliance</h3>
-                  {buildSpecs.map((s) => (
-                    <SpecRow key={s.label} label={s.label} value={s.value!} />
-                  ))}
-                </div>
-              </div>
+              )}
             </div>
           )}
 
           {activeTab === 'logistics' && (
             <div className="py-10 text-sm text-[#434653]">
-              <p>Lead time 14–21 days to Mombasa via sea freight. Customs clearance and last-mile delivery available.</p>
+              <p>{product.logistics_note || product.description}</p>
             </div>
           )}
 
           {activeTab === 'reviews' && (
             <div className="py-10 text-sm text-[#434653]">
-              <p>12 verified buyer reviews for this SKU.</p>
+              <p>
+                {reviewCount > 0
+                  ? `${reviewCount} verified buyer review${reviewCount === 1 ? '' : 's'} for this SKU.`
+                  : 'No reviews yet for this SKU.'}
+              </p>
             </div>
           )}
         </div>
@@ -371,7 +324,7 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
                     {item.name}
                   </p>
                   <p className="text-sm font-bold" style={{ color: BLUE }}>
-                    ${item.price.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    {formatPrice(item.price)}
                   </p>
                 </div>
               </Link>
@@ -391,7 +344,7 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
             wholesale prices. Request a custom quote for your project.
           </p>
           <Link
-            href="/admin/sourcing"
+            href="/dashboard/sourcing/new"
             className="inline-block px-5 py-2.5 rounded text-xs font-bold text-white uppercase tracking-wide bg-black hover:opacity-90"
           >
             REQUEST CUSTOM QUOTE

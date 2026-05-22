@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { SidebarLogoutLink } from '@/components/dashboard/sidebar-logout-link';
 import { useAuthSession } from '@/hooks/use-auth-session';
+import { useCurrentUser } from '@/lib/api/hooks';
 
 const navItems = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -24,6 +25,7 @@ export default function UserDashboardLayout({ children }: { children: React.Reac
   const pathname = usePathname();
   const router = useRouter();
   const { ready, isLoggedIn } = useAuthSession();
+  const { displayName, company, initials } = useCurrentUser();
 
   useEffect(() => {
     if (ready && !isLoggedIn) {
@@ -75,10 +77,15 @@ export default function UserDashboardLayout({ children }: { children: React.Reac
         >
           <div className="p-4 border-b border-[#dce9ff] shrink-0">
             <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-md bg-[#c3c6d5] border border-[#b8bcc8] shrink-0" />
+              <div
+                className="w-11 h-11 rounded-md border border-[#b8bcc8] shrink-0 flex items-center justify-center text-sm font-bold text-white"
+                style={{ backgroundColor: '#004aad' }}
+              >
+                {initials}
+              </div>
               <div className="min-w-0">
-                <p className="text-sm font-bold text-black truncate">John Doe</p>
-                <p className="text-xs text-[#737784] truncate">Premium Sourcing</p>
+                <p className="text-sm font-bold text-black truncate">{displayName}</p>
+                <p className="text-xs text-[#737784] truncate">{company || 'Buyer account'}</p>
               </div>
             </div>
           </div>

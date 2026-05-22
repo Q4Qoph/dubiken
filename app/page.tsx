@@ -1,95 +1,42 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowRight, TrendingUp, ImageIcon } from 'lucide-react';
+import { ArrowRight, Package, ImageIcon } from 'lucide-react';
 import SiteHeader from '@/components/SiteHeader';
 import SiteFooter from '@/components/SiteFooter';
+import { useHomePageData } from '@/lib/api/hooks';
+import type { ExploreCategory } from '@/lib/types';
 
 /** Screenshot: red accent for labels (Sourcing Expertise, trend icon) */
 const RED_ACCENT = '#c41e3a';
 const BLUE = '#004aad';
 const BLUE_DARK = '#00357f';
 const SECTION_BG = '#eff4ff';
-const categories = [
-  {
-    name: 'Electronics & Tech',
-    description: 'Direct from Shenzhen & Dubai Tech Hubs',
-    href: '/categories',
-    image:
-      'https://images.pexels.com/photos/2599244/pexels-photo-2599244.jpeg?auto=compress&cs=tinysrgb&w=800',
-    className: 'md:row-span-2 md:col-start-1 md:row-start-1 min-h-[280px] md:min-h-[360px]',
-  },
-  {
-    name: 'Fashion',
-    description: 'Textiles & Finished Goods',
-    href: '#',
-    placeholder: true,
-    className: 'md:col-start-2 md:row-start-1 min-h-[170px]',
-  },
-  {
-    name: 'Machinery',
-    description: 'Construction & Industrial',
-    href: '#',
-    image:
-      'https://images.pexels.com/photos/162553/keys-workshop-mechanic-tools-162553.jpeg?auto=compress&cs=tinysrgb&w=600',
-    className: 'md:col-start-3 md:row-start-1 min-h-[170px]',
-  },
-  {
-    name: 'Home & Living',
-    description: 'Furniture & Smart Home',
-    href: '#',
-    image:
-      'https://images.pexels.com/photos/2724749/pexels-photo-2724749.jpeg?auto=compress&cs=tinysrgb&w=900',
-    className: 'md:col-span-2 md:col-start-2 md:row-start-2 min-h-[170px]',
-  },
-];
+const GRID_CLASS = [
+  'md:row-span-2 md:col-start-1 md:row-start-1 min-h-[280px] md:min-h-[360px]',
+  'md:col-start-2 md:row-start-1 min-h-[170px]',
+  'md:col-start-3 md:row-start-1 min-h-[170px]',
+  'md:col-span-2 md:col-start-2 md:row-start-2 min-h-[170px]',
+] as const;
 
-const trendingProducts = [
-  {
-    name: 'Elite Pro Wireless Headphones',
-    price: '$129.00',
-    localPrice: 'Ksh 18,500',
-    minUnits: 'Min: 5 Units',
-    market: 'CN',
-    flag: '🇨🇳',
-    href: '/marketplace',
-    image:
-      'https://images.pexels.com/photos/3780681/pexels-photo-3780681.jpeg?auto=compress&cs=tinysrgb&w=400',
-  },
-  {
-    name: 'Modernist Chronograph',
-    price: '$85.00',
-    localPrice: 'AED 312.00',
-    minUnits: 'Min: 10 Units',
-    market: 'AE',
-    flag: '🇦🇪',
-    href: '/marketplace',
-    image:
-      'https://images.pexels.com/photos/190819/pexels-photo-190819.jpeg?auto=compress&cs=tinysrgb&w=400',
-  },
-  {
-    name: 'UV400 Tech Sunglasses',
-    price: '$24.50',
-    localPrice: 'Ksh 3,200',
-    minUnits: 'Min: 50 Units',
-    market: 'CN',
-    flag: '🇨🇳',
-    href: '/marketplace',
-    image:
-      'https://images.pexels.com/photos/157675/fashion-men-s-individuality-black-and-white-157675.jpeg?auto=compress&cs=tinysrgb&w=400',
-  },
-  {
-    name: 'X-Series Health Smartwatch',
-    price: '$195.00',
-    localPrice: 'AED 716.00',
-    minUnits: 'Min: 2 Units',
-    market: 'AE',
-    flag: '🇦🇪',
-    href: '/marketplace',
-    image:
-      'https://images.pexels.com/photos/437037/pexels-photo-437037.jpeg?auto=compress&cs=tinysrgb&w=400',
-  },
-];
+const HUB_FLAG: Record<string, string> = {
+  CN: '🇨🇳',
+  AE: '🇦🇪',
+  KE: '🇰🇪',
+};
+
+function categoryCards(categories: ExploreCategory[]) {
+  return categories.slice(0, 4).map((c, i) => ({
+    name: c.name,
+    description: `${c.product_count} products · Hub ${c.origin}`,
+    href: '/categories',
+    image: c.image_url,
+    placeholder: !c.image_url,
+    className: GRID_CLASS[i] ?? GRID_CLASS[0],
+  }));
+}
+
+type CategoryCardProps = ReturnType<typeof categoryCards>[number];
 
 function CategoryCard({
   name,
@@ -98,7 +45,7 @@ function CategoryCard({
   image,
   placeholder,
   className,
-}: (typeof categories)[0]) {
+}: CategoryCardProps) {
   return (
     <Link
       href={href}
@@ -146,6 +93,11 @@ function CtaPattern() {
 }
 
 export default function HomePage() {
+  const { data, isLoading, isError, error } = useHomePageData();
+  const categories = data?.categories ?? [];
+  const products = data?.products ?? [];
+  const categoryGrid = categoryCards(categories);
+
   return (
     <div className="min-h-screen bg-white">
       <SiteHeader />
@@ -227,33 +179,61 @@ export default function HomePage() {
             </Link>
           </div>
 
+          {isError ? (
+            <p className="text-sm text-red-600 mb-4" role="alert">
+              Could not load categories. Is the API running at{' '}
+              {process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3001/api/v1'}?
+              {error instanceof Error ? ` (${error.message})` : ''}
+            </p>
+          ) : null}
           <div className="grid grid-cols-1 md:grid-cols-3 md:grid-rows-2 gap-4 md:gap-5">
-            {categories.map((cat) => (
+            {isLoading && categoryGrid.length === 0 ? (
+              <p className="col-span-full text-sm text-[#737784]">Loading categories…</p>
+            ) : null}
+            {!isLoading && categoryGrid.length === 0 ? (
+              <p className="col-span-full text-sm text-[#737784]">
+                No categories yet. Sign in as admin to publish categories.
+              </p>
+            ) : null}
+            {categoryGrid.map((cat) => (
               <CategoryCard key={cat.name} {...cat} />
             ))}
           </div>
         </div>
       </section>
 
-      {/* Trending — white bg | title BOLD dark blue | product name+price BOLD dark blue */}
+      {/* Featured products */}
       <section className="bg-white py-12 lg:py-16">
         <div className="max-w-[1280px] mx-auto px-6">
           <h2 className="text-3xl sm:text-4xl font-bold text-[#004aad] flex items-center gap-2.5 mb-10">
-            <TrendingUp className="w-7 h-7 sm:w-8 sm:h-8 shrink-0" style={{ color: RED_ACCENT }} strokeWidth={2.5} />
-            Trending Imports
+            Featured Products
           </h2>
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5">
-            {trendingProducts.map((product) => (
+            {isLoading && products.length === 0 ? (
+              <p className="col-span-full text-sm text-[#737784]">Loading products…</p>
+            ) : null}
+            {!isLoading && products.length === 0 ? (
+              <p className="col-span-full text-sm text-[#737784]">
+                No marketplace products yet.{' '}
+                <Link href="/marketplace" className="font-bold underline" style={{ color: BLUE }}>
+                  Browse marketplace
+                </Link>
+              </p>
+            ) : null}
+            {products.map((product) => (
               <Link
-                key={product.name}
-                href={product.href}
+                key={product.id}
+                href={`/product/${product.productId}`}
                 className="flex flex-col rounded-lg overflow-hidden bg-white border border-[#c3c6d5] hover:border-[#004aad]"
               >
                 <div className="relative bg-[#eff4ff] h-36 sm:h-[168px] flex items-center justify-center border-b border-[#c3c6d5]">
-                  <MarketTag market={product.market} flag={product.flag} />
+                  <MarketTag
+                    market={product.origin}
+                    flag={HUB_FLAG[product.origin] ?? product.origin}
+                  />
                   <img
-                    src={product.image}
+                    src={product.image_url}
                     alt={product.name}
                     className="max-h-[78%] max-w-[78%] object-contain"
                   />
@@ -262,10 +242,11 @@ export default function HomePage() {
                   <h3 className="text-sm font-bold text-[#004aad] leading-snug line-clamp-2">
                     {product.name}
                   </h3>
-                  <p className="text-base font-bold text-[#004aad] mt-2">{product.price}</p>
-                  <p className="text-sm font-normal text-[#434653]">{product.localPrice}</p>
+                  <p className="text-base font-bold text-[#004aad] mt-2">
+                    {product.price_kes}
+                  </p>
                   <p className="text-xs font-normal text-[#737784] text-right mt-auto pt-3">
-                    {product.minUnits}
+                    {product.vendor}
                   </p>
                 </div>
               </Link>
@@ -293,7 +274,7 @@ export default function HomePage() {
             </div>
             <div className="relative z-10 shrink-0">
               <Link
-                href="/admin/sourcing"
+                href="/dashboard/sourcing/new"
                 className="inline-flex items-center justify-center px-8 sm:px-10 py-3.5 rounded text-sm font-bold bg-[#ff924d] text-[#004aad] hover:opacity-90 w-full sm:w-auto min-w-[220px]"
               >
                 REQUEST SOURCING

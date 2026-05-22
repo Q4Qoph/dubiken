@@ -2,14 +2,15 @@
 
 import { useEffect, useState } from 'react';
 import { Send, FileEdit } from 'lucide-react';
-import { saveAdminOfficialQuote } from '@/lib/data';
-import type { SourcingQuoteReceived } from '@/lib/mock-data';
+import { useSaveOfficialQuoteMutation } from '@/lib/api/hooks';
+import type { SourcingQuoteReceived } from '@/lib/types';
+import { TRANSPORT_TYPES } from '@/lib/contracts';
 
 const BLUE = '#004aad';
 const BLUE_DARK = '#00357f';
 const SECTION_BG = '#eff4ff';
 
-const transportOptions = ['FOB Ningbo', 'CIF Mombasa', 'EXW Shenzhen', 'DAP Nairobi'];
+const transportOptions = [...TRANSPORT_TYPES];
 
 export interface QuoteFormValues {
   unitPrice: string;
@@ -49,7 +50,7 @@ export default function AdminOfficialQuoteForm({
 }: AdminOfficialQuoteFormProps) {
   const hasQuote = Boolean(initialQuote);
   const [values, setValues] = useState<QuoteFormValues>(() => valuesFromQuote(initialQuote));
-  const [saving, setSaving] = useState(false);
+  const saveQuote = useSaveOfficialQuoteMutation(requestId);
   const [savedFlash, setSavedFlash] = useState(false);
 
   useEffect(() => {
@@ -60,9 +61,8 @@ export default function AdminOfficialQuoteForm({
 
   async function handleSave() {
     if (!values.unitPrice.trim() || !values.transport || !values.leadDays.trim()) return;
-    setSaving(true);
     try {
-      await saveAdminOfficialQuote(requestId, {
+      await saveQuote.mutateAsync({
         unit_price: values.unitPrice,
         shipping_cost: values.shippingCost,
         transport: values.transport,
@@ -72,8 +72,8 @@ export default function AdminOfficialQuoteForm({
       setSavedFlash(true);
       onSaved();
       setTimeout(() => setSavedFlash(false), 2000);
-    } finally {
-      setSaving(false);
+    } catch {
+      /* ApiError surfaced by parent if needed */
     }
   }
 
@@ -202,13 +202,13 @@ export default function AdminOfficialQuoteForm({
         )}
         <button
           type="button"
-          disabled={saving}
+          disabled={saveQuote.isPending}
           onClick={handleSave}
           className="flex items-center gap-2 px-5 py-2.5 text-xs font-bold rounded-lg text-white disabled:opacity-50"
           style={{ backgroundColor: BLUE_DARK }}
         >
           <Send className="w-4 h-4" />
-          {saving ? 'Saving…' : hasQuote ? 'Save Changes' : 'Issue Official Quote'}
+          {saveQuote.isPending ? 'Saving…' : hasQuote ? 'Save Changes' : 'Issue Official Quote'}
         </button>
       </div>
     </section>

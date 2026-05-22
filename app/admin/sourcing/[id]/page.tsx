@@ -1,11 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { FileText } from 'lucide-react';
-import { getSourcingRequestById } from '@/lib/data';
-import type { SourcingRequestDetail } from '@/lib/mock-data';
+import { useAdminSourcingDetail } from '@/lib/api/hooks';
+import type { SourcingRequestDetail } from '@/lib/types';
 import AdminOfficialQuoteForm from '@/components/sourcing/AdminOfficialQuoteForm';
 import AdminPageFooter from '@/components/admin/AdminPageFooter';
 
@@ -22,17 +21,9 @@ const statusBadge: Record<SourcingRequestDetail['status'], string> = {
 export default function AdminSourcingDetailPage() {
   const params = useParams();
   const id = typeof params.id === 'string' ? params.id : '';
-  const [detail, setDetail] = useState<SourcingRequestDetail | null | undefined>(undefined);
+  const { data: detail, isLoading, refetch } = useAdminSourcingDetail(id);
 
-  const loadDetail = useCallback(() => {
-    if (id) getSourcingRequestById(id).then(setDetail);
-  }, [id]);
-
-  useEffect(() => {
-    loadDetail();
-  }, [loadDetail]);
-
-  if (detail === undefined) {
+  if (isLoading) {
     return <div className="p-8 text-sm text-[#737784] bg-[#f8f9ff] min-h-full">Loading request…</div>;
   }
 
@@ -147,7 +138,7 @@ export default function AdminSourcingDetailPage() {
           requestId={detail.id}
           clientName={detail.client_name}
           initialQuote={officialQuote}
-          onSaved={loadDetail}
+          onSaved={() => refetch()}
         />
       </div>
       <AdminPageFooter />

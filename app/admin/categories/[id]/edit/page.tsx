@@ -1,24 +1,19 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import CategoryForm from '@/components/admin/CategoryForm';
-import { getAdminCategoryById } from '@/lib/data';
-import type { AdminCategoryCard } from '@/lib/mock-data';
+import { useAdminCategory } from '@/lib/api/hooks';
+import type { AdminCategoryCard } from '@/lib/types';
 
 const BLUE = '#004aad';
 
 export default function EditCategoryPage() {
   const params = useParams();
   const id = typeof params.id === 'string' ? params.id : '';
-  const [category, setCategory] = useState<AdminCategoryCard | null | undefined>(undefined);
+  const { data: category, isLoading } = useAdminCategory(id);
 
-  useEffect(() => {
-    if (id) getAdminCategoryById(id).then(setCategory);
-  }, [id]);
-
-  if (category === undefined) {
+  if (isLoading) {
     return (
       <div className="p-8 text-sm text-[#737784] bg-[#f8f9ff] min-h-full">Loading category…</div>
     );

@@ -113,6 +113,10 @@ export interface Product {
   currency_ke: string;
   currency_ae: string;
   description: string;
+  vendor: string;
+  category: string;
+  review_count: number;
+  logistics_note: string;
 }
 
 export interface RelatedProduct {
@@ -828,9 +832,27 @@ export interface UserSourcingRequestItem {
   status_variant: 'orange' | 'blue' | 'gray';
 }
 
+export interface AdminMarketplaceOrderRow {
+  id: string;
+  order_number: string;
+  title: string;
+  vendor: string;
+  origin_flag: string;
+  image_url: string;
+  status: string;
+  status_icon: 'transit' | 'delivered' | 'processing';
+  price_kes: string;
+  customer_name: string;
+  customer_detail: string;
+  date_value: string;
+  primary_action: string;
+  secondary_action: string;
+}
+
 export interface UserMarketplaceOrder {
   id: string;
   order_number: string;
+  tracking_id?: string | null;
   title: string;
   vendor: string;
   origin_flag: string;

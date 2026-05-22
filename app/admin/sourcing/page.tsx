@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import {
   Plus,
@@ -11,8 +11,8 @@ import {
   FileText,
   ExternalLink,
 } from 'lucide-react';
-import { getSourcingRequests } from '@/lib/data';
-import type { SourcingRequest } from '@/lib/mock-data';
+import { useAdminSourcingRequests } from '@/lib/api/hooks';
+import type { SourcingRequest } from '@/lib/types';
 
 const BLUE = '#004aad';
 const BLUE_DARK = '#00357f';
@@ -91,17 +91,14 @@ function DestinationCell({ req }: { req: SourcingRequest }) {
 }
 
 export default function AdminSourcingPage() {
-  const [requests, setRequests] = useState<SourcingRequest[]>([]);
   const [marketFilter, setMarketFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [page, setPage] = useState(1);
 
-  useEffect(() => {
-    getSourcingRequests({
-      market: marketFilter,
-      statuses: statusFilter.length > 0 ? statusFilter : undefined,
-    }).then(setRequests);
-  }, [marketFilter, statusFilter]);
+  const { data: requests = [], isLoading } = useAdminSourcingRequests({
+    market: marketFilter,
+    statuses: statusFilter.length > 0 ? statusFilter : undefined,
+  });
 
   const totalPages = Math.max(1, Math.ceil(TOTAL_REQUESTS / PAGE_SIZE));
   const pageRequests = useMemo(() => {

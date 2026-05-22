@@ -1,58 +1,94 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useMemo } from 'react';
+import type { CartItem } from '@/lib/cart-storage';
 import {
-  CART_CHANGE_EVENT,
-  addCartItem,
-  getCartItems,
-  setCartItems,
-  type CartItem,
-} from '@/lib/cart-storage';
+  useAddCartItemMutation,
+  useCartQuery,
+  useRemoveCartItemMutation,
+  useUpdateCartItemMutation,
+} from '@/lib/api/hooks';
+
+function mapApiCart(
+  items:
+    | {
+        id: string;
+        product_id: string;
+        name: string;
+        sku: string;
+        quantity: number;
+        unit_price: number;
+        origin: string;
+        image_url: string;
+      }[]
+    | undefined
+    | null,
+): CartItem[] {
+  return (items ?? []).map((i) => ({
+    id: i.id,
+    productId: i.product_id,
+    name: i.name,
+    sku: i.sku,
+    quantity: i.quantity,
+    unitPrice: i.unit_price,
+    origin: i.origin,
+    imageUrl: i.image_url,
+  }));
+}
 
 export function useCart() {
-  const [items, setItems] = useState<CartItem[]>([]);
-  const [ready, setReady] = useState(false);
+  const { data: apiCart, isLoading, isFetching } = useCartQuery();
+  const addMutation = useAddCartItemMutation();
+  const updateMutation = useUpdateCartItemMutation();
+  const removeMutation = useRemoveCartItemMutation();
 
-  const refresh = useCallback(() => {
-    setItems(getCartItems());
-    setReady(true);
-  }, []);
+  const items = useMemo(() => mapApiCart(apiCart?.items), [apiCart?.items]);
 
-  useEffect(() => {
-    refresh();
-    const onChange = () => refresh();
-    window.addEventListener(CART_CHANGE_EVENT, onChange);
-    window.addEventListener('storage', onChange);
-    return () => {
-      window.removeEventListener(CART_CHANGE_EVENT, onChange);
-      window.removeEventListener('storage', onChange);
-    };
-  }, [refresh]);
+  const itemCount = apiCart?.item_count ?? 0;
+  const ready = !isLoading;
 
-  const itemCount = ready ? items.reduce((sum, i) => sum + i.quantity, 0) : 0;
+  const addItem = useCallback(
+    (item: Omit<CartItem, 'quantity'> & { quantity?: number }) => {
+      const qty = item.quantity ?? 1;
+      const productId = item.productId ?? item.id;
+      addMutation.mutate({ product_id: productId, quantity: qty });
+    },
+    [addMutation],
+  );
 
-  const updateQuantity = useCallback((id: string, delta: number) => {
-    const next = getCartItems().map((item) =>
-      item.id === id ? { ...item, quantity: Math.max(1, item.quantity + delta) } : item,
-    );
-    setCartItems(next);
-  }, []);
+  const updateQuantity = useCallback(
+    (id: string, delta: number) => {
+      const line = items.find((i) => i.id === id);
+      if (!line) return;
+      const nextQty = Math.max(1, line.quantity + delta);
+      updateMutation.mutate({ lineId: id, quantity: nextQty });
+    },
+    [items, updateMutation],
+  );
 
-  const removeItem = useCallback((id: string) => {
-    setCartItems(getCartItems().filter((i) => i.id !== id));
-  }, []);
+  const removeItem = useCallback(
+    (id: string) => {
+      removeMutation.mutate(id);
+    },
+    [removeMutation],
+  );
 
-  const replaceItems = useCallback((next: CartItem[]) => {
-    setCartItems(next);
+  const replaceItems = useCallback(() => {
+    /* server cart only */
   }, []);
 
   return {
     ready,
     items,
     itemCount,
-    addItem: addCartItem,
+    addItem,
     updateQuantity,
     removeItem,
     replaceItems,
+    isPending:
+      isFetching ||
+      addMutation.isPending ||
+      updateMutation.isPending ||
+      removeMutation.isPending,
   };
 }
