@@ -16,8 +16,7 @@ export default function SiteFooter() {
               Dubiken
             </p>
             <p className="text-sm font-normal text-black leading-relaxed">
-              Your bridge to global manufacturing and sourcing excellence. Reliable,
-              efficient, and transparent.
+              Certified electronics, perfumes, and spare parts imported through Dubai and China.
             </p>
           </div>
           <div>
@@ -32,7 +31,7 @@ export default function SiteFooter() {
               </li>
               <li>
                 <Link href="#" className="hover:opacity-70">
-                  Sourcing Guide
+                  Shopping help
                 </Link>
               </li>
             </ul>

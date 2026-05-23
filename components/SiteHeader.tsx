@@ -55,7 +55,7 @@ function HeaderSearch({ placeholder }: { placeholder: string }) {
         onChange={(e) => setQuery(e.target.value)}
         placeholder={placeholder}
         className="w-full pl-11 pr-4 py-2.5 border border-[#c3c6d5] rounded bg-[#f8f9ff] text-sm text-[#0b1c30] placeholder:text-[#737784] focus:outline-none focus:border-[#004aad]"
-        aria-label="Search marketplace"
+        aria-label="Search products"
       />
     </form>
   );
@@ -96,7 +96,7 @@ export default function SiteHeader({
           href="/marketplace"
           className="hidden sm:block text-sm font-semibold text-[#434653] hover:text-[#004aad] shrink-0"
         >
-          Marketplace
+          Shop
         </Link>
 
         <div className="flex-1 max-w-xl mx-auto hidden sm:block">

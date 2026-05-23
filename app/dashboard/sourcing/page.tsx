@@ -31,10 +31,10 @@ export default function UserSourcingPage() {
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold" style={{ color: BLUE_DARK }}>
-            Custom Sourcing Requests
+            Product requests
           </h1>
           <p className="text-sm text-[#737784] mt-1 max-w-xl">
-            Track and manage your global procurement inquiries across Kenya, Dubai, and China.
+            Items you asked Dubiken to find. Track quotes and status here.
           </p>
         </div>
         <Link
@@ -43,7 +43,7 @@ export default function UserSourcingPage() {
           style={{ backgroundColor: BLUE_DARK }}
         >
           <Plus className="w-4 h-4" />
-          New Sourcing Request
+          Request a product
         </Link>
       </div>
 

@@ -170,7 +170,7 @@ export default function DashboardPage() {
         <div className="bg-white border border-[#e5eeff] rounded-lg p-4">
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10px] font-bold uppercase tracking-wider text-[#737784]">
-              Sourcing
+              Requests
             </p>
             <FileText className="w-4 h-4" style={{ color: BLUE }} />
           </div>
@@ -203,7 +203,7 @@ export default function DashboardPage() {
           className="flex items-center gap-3 bg-white border border-[#e5eeff] rounded-lg p-4 hover:border-[#004aad] transition-colors"
         >
           <Store className="w-5 h-5 shrink-0" style={{ color: BLUE }} />
-          <span className="text-sm font-bold text-black">Marketplace</span>
+          <span className="text-sm font-bold text-black">Shop</span>
         </Link>
         <Link
           href="/dashboard/orders"
@@ -217,7 +217,7 @@ export default function DashboardPage() {
           className="flex items-center gap-3 bg-white border border-[#e5eeff] rounded-lg p-4 hover:border-[#004aad] transition-colors"
         >
           <Plus className="w-5 h-5 shrink-0" style={{ color: BLUE }} />
-          <span className="text-sm font-bold text-black">New quote</span>
+          <span className="text-sm font-bold text-black">Request item</span>
         </Link>
         <Link
           href={itemCount > 0 ? '/checkout' : '/marketplace'}
@@ -258,7 +258,7 @@ export default function DashboardPage() {
                 style={{ backgroundColor: BLUE_DARK }}
               >
                 <Store className="w-4 h-4" />
-                Shop marketplace
+                Start shopping
               </Link>
             </div>
           ) : (
@@ -351,7 +351,7 @@ export default function DashboardPage() {
           {/* Sourcing */}
           <div className="bg-white rounded-lg border border-[#e5eeff] p-5">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-bold text-black">Sourcing quotes</h2>
+              <h2 className="text-base font-bold text-black">Product requests</h2>
               <Link
                 href="/dashboard/sourcing"
                 className="text-xs font-bold hover:underline"
@@ -364,7 +364,7 @@ export default function DashboardPage() {
               <p className="text-sm text-[#737784]">Loading…</p>
             ) : sourcingRequests.length === 0 ? (
               <p className="text-sm text-[#737784]">
-                No sourcing requests yet.{' '}
+                No product requests yet.{' '}
                 <Link
                   href="/dashboard/sourcing/new"
                   className="font-bold underline"

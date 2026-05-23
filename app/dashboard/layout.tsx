@@ -17,7 +17,7 @@ import { useCurrentUser } from '@/lib/api/hooks';
 
 const navItems = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { label: 'Marketplace', href: '/marketplace', icon: Store },
+  { label: 'Shop', href: '/marketplace', icon: Store },
   { label: 'My Orders', href: '/dashboard/orders', icon: ShoppingBag },
   { label: 'Sourcing Requests', href: '/dashboard/sourcing', icon: FileText },
 ];

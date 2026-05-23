@@ -30,24 +30,23 @@ export default function AuthMarketingPanel() {
       <div className="relative z-10">
         <div className="inline-flex items-center gap-2 border border-white/30 rounded-full px-4 py-2 text-white/90 text-sm mb-8">
           <Globe className="w-4 h-4" />
-          Direct Sourcing Ecosystem
+          Shop with Dubiken
         </div>
         <h1 className="text-white text-4xl font-bold leading-tight mb-4">
-          Connecting Kenya,
+          Products from Dubai
           <br />
-          Dubai &amp; China
+          and China
         </h1>
         <p className="text-white/70 text-lg leading-relaxed max-w-md">
-          Streamline your global trade with our integrated B2B sourcing platform. From Mombasa to
-          Guangzhou, manage logistics and payments in one place.
+          Browse the catalog, pay in KSh, and track your order to Kenya. One checkout, one team.
         </p>
       </div>
 
       <div className="relative z-10 grid grid-cols-2 gap-4">
         <div className="border border-white/20 rounded-xl p-5 bg-white/5 backdrop-blur-sm">
           <Package className="w-6 h-6 text-white/80 mb-3" />
-          <h3 className="text-white font-semibold mb-1">Direct Supply</h3>
-          <p className="text-white/60 text-sm">Verified manufacturers and suppliers from key hubs.</p>
+          <h3 className="text-white font-semibold mb-1">Wide catalog</h3>
+          <p className="text-white/60 text-sm">Electronics, fashion, and more from Dubai and China.</p>
         </div>
         <div className="border border-white/20 rounded-xl p-5 bg-white/5 backdrop-blur-sm">
           <Truck className="w-6 h-6 text-white/80 mb-3" />

@@ -49,7 +49,7 @@ export default function ExploreCategoriesPage() {
                 Categories
               </h1>
               <p className="text-sm text-[#737784] mt-2">
-                Browse products by category from the marketplace catalog.
+                Choose a category and start shopping.
               </p>
             </div>
           </div>

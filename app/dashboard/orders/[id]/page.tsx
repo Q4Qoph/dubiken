@@ -76,8 +76,7 @@ export default function UserMarketplaceOrderDetailPage() {
           <h1 className="text-2xl font-bold mb-2" style={{ color: BLUE_DARK }}>
             {order.title}
           </h1>
-          <p className="text-sm text-[#737784] mb-3">{order.vendor}</p>
-          <div className="flex items-center gap-2 mb-3">
+          <div className="flex items-center gap-2 mb-3 mt-1">
             <StatusIcon type={order.status_icon} />
             <span className="text-sm font-bold text-[#434653]">{order.status}</span>
           </div>

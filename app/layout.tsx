@@ -7,11 +7,13 @@ import { QueryProvider } from '@/providers/query-provider';
 const inter = Inter({
   subsets: ['latin'],
   variable: '--font-inter',
+  display: 'swap',
 });
 
 export const metadata: Metadata = {
-  title: 'Dubiken - Global Sourcing Platform',
-  description: 'Direct Sourcing Ecosystem connecting Kenya, Dubai & China',
+  title: 'Dubiken | Electronics, perfumes & spare parts',
+  description:
+    'Certified electronics, perfumes, and spare parts imported through Dubai and China. One marketplace.',
 };
 
 export default function RootLayout({
@@ -20,8 +22,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className={`${inter.variable} ${inter.className} font-sans`}>
+    <html lang="en" className={inter.variable}>
+      <body className={`${inter.className} font-sans antialiased`}>
         <QueryProvider>
           {children}
           <AppToaster />

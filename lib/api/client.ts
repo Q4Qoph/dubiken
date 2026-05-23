@@ -85,7 +85,20 @@ export async function apiRequest<T>(
     }
 
     const text = await res.text();
-    const json = text ? (JSON.parse(text) as unknown) : null;
+    let json: unknown = null;
+    if (text) {
+      try {
+        json = JSON.parse(text) as unknown;
+      } catch {
+        throw new ApiError(
+          res.status || 0,
+          'invalid_response',
+          res.ok
+            ? 'The API returned an unexpected response.'
+            : `The API is unavailable (${res.status || 'network error'}). Start the backend with: cd backend && npm run dev`,
+        );
+      }
+    }
 
     if (!res.ok) {
       if (res.status === 401) {

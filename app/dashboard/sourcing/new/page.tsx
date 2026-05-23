@@ -128,7 +128,7 @@ export default function NewSourcingRequestPage() {
         nextErrors.productName = 'Enter a product name or title';
       }
       if (!form.description.trim()) {
-        nextErrors.description = 'Add a description for suppliers';
+        nextErrors.description = 'Add a short description of what you want';
       } else if (form.description.trim().length < 20) {
         nextErrors.description = 'Description should be at least 20 characters';
       }
@@ -208,11 +208,11 @@ export default function NewSourcingRequestPage() {
       <div className="flex flex-1 min-h-0">
         <div className="hidden lg:flex w-72 shrink-0 flex-col border-r border-[#c3c6d5] bg-white p-6 overflow-hidden">
           <h1 className="text-xl font-bold mb-3" style={{ color: BLUE_DARK }}>
-            Custom Sourcing Request
+            Request a product
           </h1>
           <p className="text-sm text-[#737784] leading-relaxed mb-6">
-            Tell us what you need. We source from verified manufacturers across Kenya,
-            Dubai, and China.
+            Tell us what you need. Dubiken will find it in Dubai or China and send you a quote in
+            KSh.
           </p>
 
           <div className="space-y-3 flex-1 min-h-0">
@@ -256,9 +256,10 @@ export default function NewSourcingRequestPage() {
             style={{ backgroundColor: BLUE_DARK }}
           >
             <Shield className="w-8 h-8 mb-2 opacity-90" />
-            <p className="text-sm font-bold mb-1">Secure Global Sourcing</p>
+            <p className="text-sm font-bold mb-1">We handle the rest</p>
             <p className="text-xs opacity-90 leading-relaxed">
-              Every supplier is vetted with on-site manufacturer inspections.
+              Tell us what you need. Dubiken finds it in Dubai or China and sends you a quote in
+              KSh.
             </p>
           </div>
         </div>
@@ -273,7 +274,7 @@ export default function NewSourcingRequestPage() {
                 ← Back to requests
               </Link>
               <h1 className="text-xl font-bold" style={{ color: BLUE_DARK }}>
-                Custom Sourcing Request
+                Request a product
               </h1>
               <div className="flex gap-2">
                 {STEPS.map((s) => (
@@ -562,9 +563,8 @@ export default function NewSourcingRequestPage() {
                         className="mt-1 h-4 w-4 rounded border-[#c3c6d5]"
                       />
                       <span className="text-sm text-[#434653] leading-relaxed">
-                        I confirm the details are accurate and agree to Dubiken&apos;s sourcing
-                        terms. Quotes are subject to supplier availability and logistics
-                        conditions.
+                        I confirm the details are accurate and agree to Dubiken&apos;s terms.
+                        Quotes depend on product availability and shipping.
                       </span>
                     </label>
                     {errors.acceptTerms && (
