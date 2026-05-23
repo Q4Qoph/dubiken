@@ -416,13 +416,14 @@ export function useSaveAdminCategoryMutation() {
     mutationFn: (input: AdminCategoryFormInput) => saveAdminCategory(input),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.admin.categories });
-      qc.invalidateQueries({ queryKey: queryKeys.categories.explore });
+      qc.invalidateQueries({ queryKey: queryKeys.categories.exploreAll });
     },
   });
 }
 
 export function useAdminInventory(search?: string) {
-  const query = search ? { search, page_size: 100 } : { page_size: 100 };
+  const query: Record<string, string | number> = { page_size: 100 };
+  if (search) query.search = search;
   return useQuery({
     queryKey: queryKeys.admin.inventory(query),
     queryFn: () => getAdminInventoryItems(search),
@@ -454,7 +455,7 @@ export function useCreateInventoryProductMutation() {
       qc.invalidateQueries({ queryKey: ['admin', 'inventory'] });
       qc.invalidateQueries({ queryKey: queryKeys.admin.inventoryKpis });
       qc.invalidateQueries({ queryKey: queryKeys.marketplace.products() });
-      qc.invalidateQueries({ queryKey: queryKeys.categories.explore });
+      qc.invalidateQueries({ queryKey: queryKeys.categories.exploreAll });
     },
   });
 }

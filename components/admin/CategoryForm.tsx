@@ -5,22 +5,23 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Upload, Check, Clock } from 'lucide-react';
 import type { AdminCategoryCard } from '@/lib/types';
+import type { HubCode } from '@/lib/contracts/enums';
 import { useSaveAdminCategoryMutation, useUploadImageMutation } from '@/lib/api/hooks';
 import AdminPageFooter from '@/components/admin/AdminPageFooter';
 
 const BLUE = '#004aad';
 const BLUE_DARK = '#00357f';
 
-const ORIGIN_OPTIONS = [
+const ORIGIN_OPTIONS: { code: HubCode; label: string }[] = [
   { code: 'KE', label: 'Kenya' },
   { code: 'AE', label: 'Dubai (UAE)' },
   { code: 'CN', label: 'China' },
-] as const;
+];
 
 export interface CategoryFormValues {
   name: string;
   description: string;
-  origins: string[];
+  origins: HubCode[];
   status: AdminCategoryCard['status'];
   imageUrl: string | null;
 }
@@ -39,7 +40,7 @@ function fromCategory(cat: AdminCategoryCard): CategoryFormValues {
   return {
     name: cat.name,
     description: cat.description,
-    origins: [...cat.origins],
+    origins: cat.origins.filter((o): o is HubCode => o === 'KE' || o === 'AE' || o === 'CN'),
     status: cat.status,
     imageUrl: cat.image_url,
   };
@@ -63,7 +64,7 @@ export default function CategoryForm({ mode, categoryId, initial }: CategoryForm
   const title = mode === 'create' ? 'Create Product Category' : 'Edit Product Category';
   const breadcrumbCurrent = mode === 'create' ? 'New Category' : 'Edit Category';
 
-  const toggleOrigin = useCallback((code: string) => {
+  const toggleOrigin = useCallback((code: HubCode) => {
     setValues((v) => {
       const has = v.origins.includes(code);
       const origins = has ? v.origins.filter((o) => o !== code) : [...v.origins, code];
@@ -95,7 +96,7 @@ export default function CategoryForm({ mode, categoryId, initial }: CategoryForm
         id: categoryId,
         name: values.name.trim(),
         description: values.description.trim(),
-        origins: values.origins as AdminCategoryCard['origins'],
+        origins: values.origins,
         image_url: values.imageUrl ?? '',
         status,
       });
