@@ -8,14 +8,16 @@ import {
   ShoppingBag,
   FileText,
   Plus,
-  Search,
-  User,
+  Store,
 } from 'lucide-react';
 import { SidebarLogoutLink } from '@/components/dashboard/sidebar-logout-link';
+import UserAccountMenu from '@/components/UserAccountMenu';
 import { useAuthSession } from '@/hooks/use-auth-session';
+import { useCurrentUser } from '@/lib/api/hooks';
 
 const navItems = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { label: 'Marketplace', href: '/marketplace', icon: Store },
   { label: 'My Orders', href: '/dashboard/orders', icon: ShoppingBag },
   { label: 'Sourcing Requests', href: '/dashboard/sourcing', icon: FileText },
 ];
@@ -24,6 +26,7 @@ export default function UserDashboardLayout({ children }: { children: React.Reac
   const pathname = usePathname();
   const router = useRouter();
   const { ready, isLoggedIn } = useAuthSession();
+  const { displayName, user, initials } = useCurrentUser();
 
   useEffect(() => {
     if (ready && !isLoggedIn) {
@@ -45,27 +48,8 @@ export default function UserDashboardLayout({ children }: { children: React.Reac
         <Link href="/" className="text-xl font-bold tracking-tight shrink-0" style={{ color: '#004aad' }}>
           Dubiken
         </Link>
-        <div className="flex-1 max-w-sm ml-auto hidden sm:block">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              placeholder="Search orders..."
-              className="w-full pl-9 pr-4 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#1a3a6b]"
-            />
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Link href="/admin" className="text-xs font-medium text-[#1a3a6b] hover:underline hidden sm:inline">
-            Admin
-          </Link>
-          <Link
-            href="/dashboard"
-            className="p-1.5 hover:bg-gray-100 rounded-md"
-            aria-label="Dashboard"
-          >
-            <User className="w-5 h-5 text-gray-700" />
-          </Link>
-        </div>
+        <div className="flex-1" />
+        <UserAccountMenu />
       </header>
 
       <div className="flex flex-1 min-h-0">
@@ -75,10 +59,15 @@ export default function UserDashboardLayout({ children }: { children: React.Reac
         >
           <div className="p-4 border-b border-[#dce9ff] shrink-0">
             <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-md bg-[#c3c6d5] border border-[#b8bcc8] shrink-0" />
+              <div
+                className="w-11 h-11 rounded-md border border-[#b8bcc8] shrink-0 flex items-center justify-center text-sm font-bold text-white"
+                style={{ backgroundColor: '#004aad' }}
+              >
+                {initials}
+              </div>
               <div className="min-w-0">
-                <p className="text-sm font-bold text-black truncate">John Doe</p>
-                <p className="text-xs text-[#737784] truncate">Premium Sourcing</p>
+                <p className="text-sm font-bold text-black truncate">{displayName}</p>
+                <p className="text-xs text-[#737784] truncate">{user?.email ?? ''}</p>
               </div>
             </div>
           </div>
@@ -87,7 +76,8 @@ export default function UserDashboardLayout({ children }: { children: React.Reac
             {navItems.map(({ label, href, icon: Icon }) => {
               const active =
                 pathname === href ||
-                (href !== '/dashboard' && pathname.startsWith(href));
+                (href === '/marketplace' && pathname.startsWith('/marketplace')) ||
+                (href !== '/dashboard' && href !== '/marketplace' && pathname.startsWith(href));
               return (
                 <Link
                   key={href}

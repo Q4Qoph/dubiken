@@ -98,14 +98,17 @@ export interface UserSourcingRequestDetail {
   quote_date?: string;
   destination_port?: string;
   estimated_budget_range?: string;
+  delivery_county?: string;
+  delivery_address?: string;
 }
 
 export interface Product {
   id: string;
   name: string;
   sku: string;
-  price: number;
-  original_price: number | null;
+  price_kes: number;
+  compare_at_price_kes: number | null;
+  save_percent: number | null;
   origin: string;
   image_url: string;
   images: string[];
@@ -113,14 +116,20 @@ export interface Product {
   currency_ke: string;
   currency_ae: string;
   description: string;
+  vendor: string;
+  category: string;
+  review_count: number;
+  logistics_note: string;
 }
 
 export interface RelatedProduct {
   id: string;
   name: string;
   price: number;
+  price_kes: string;
   origin: string;
   image_url: string;
+  stock: number;
 }
 
 export const mockOrders: Order[] = [
@@ -216,8 +225,9 @@ export const mockProducts: Product[] = [
     id: '1',
     name: 'Hyperion X8 Industrial 3-Phase Solar Inverter (100kW)',
     sku: 'IND-SLR-8802',
-    price: 4250.0,
-    original_price: 4800.0,
+    price_kes: 573_750,
+    compare_at_price_kes: 648_000,
+    save_percent: 11,
     origin: 'CN',
     image_url: inverterMain,
     images: [inverterMain, inverterThumb2, inverterThumb3, inverterThumb4],
@@ -240,8 +250,9 @@ export const mockProducts: Product[] = [
     id: '2',
     name: 'LiFePO4 Storage Rack 10kWh',
     sku: 'DBK-BAT-10K',
-    price: 2800.0,
-    original_price: null,
+    price_kes: 378_000,
+    compare_at_price_kes: null,
+    save_percent: null,
     origin: 'CN',
     image_url: '',
     images: [],
@@ -254,8 +265,9 @@ export const mockProducts: Product[] = [
     id: '3',
     name: 'Tier-1 Monocrystalline Panel 550W',
     sku: 'DBK-PNL-550',
-    price: 165.0,
-    original_price: 189.0,
+    price_kes: 22_275,
+    compare_at_price_kes: 25_515,
+    save_percent: 13,
     origin: 'CN',
     image_url:
       'https://images.pexels.com/photos/159397/solar-panel-array-power-sun-159397.jpeg?auto=compress&cs=tinysrgb&w=400',
@@ -269,8 +281,9 @@ export const mockProducts: Product[] = [
     id: '4',
     name: 'Smart DC Power Optimizer 650W',
     sku: 'DBK-OPT-650',
-    price: 45.0,
-    original_price: null,
+    price_kes: 6_075,
+    compare_at_price_kes: null,
+    save_percent: null,
     origin: 'CN',
     image_url:
       'https://images.pexels.com/photos/3921320/pexels-photo-3921320.jpeg?auto=compress&cs=tinysrgb&w=400',
@@ -284,8 +297,9 @@ export const mockProducts: Product[] = [
     id: '5',
     name: 'Solar DC Cable 6mm² (100m Roll)',
     sku: 'DBK-CBL-6MM',
-    price: 85.0,
-    original_price: null,
+    price_kes: 11_475,
+    compare_at_price_kes: null,
+    save_percent: null,
     origin: 'CN',
     image_url:
       'https://images.pexels.com/photos/2881229/pexels-photo-2881229.jpeg?auto=compress&cs=tinysrgb&w=400',
@@ -463,8 +477,8 @@ const defaultSolarAttachments: SourcingAttachment[] = [
 const defaultOfficialQuote: SourcingQuoteReceived[] = [
   {
     id: 'q-1',
-    unit_price: '$21.50',
-    shipping_cost: '$1,200.00',
+    unit_price: 'KSh 2,903',
+    shipping_cost: 'KSh 162,000',
     lead_time: '14 Days',
     shipment: 'FOB Ningbo',
     notes: 'Verified manufacturer with ISO 9001. Includes standard export packaging.',
@@ -477,7 +491,7 @@ export const sourcingRequestDetailsById: Record<string, Partial<SourcingRequestD
     quantity: '500 Units',
     material_grade: 'Aluminum Grade 6061',
     voltage_range: '1100V - 1500V',
-    budget_total: '$12,500.00',
+    budget_total: 'KSh 1,687,500',
     budget_subtitle: 'Estimated Total (EXW/FOB)',
     regional_targets: [
       { code: 'CN', label: 'China (CN)' },
@@ -506,7 +520,7 @@ export const userSourcingRequestDetailsById: Record<string, UserSourcingRequestD
       'High-efficiency string inverters for commercial rooftop arrays. Must support grid-tie certification, MPPT tracking, and export-grade packaging for East Africa distribution.',
     quantity: '500 Units',
     voltage_range: '1100V - 1500V',
-    budget_total: '$12,500.00',
+    budget_total: 'KSh 1,687,500',
     budget_subtitle: 'Estimated Total (EXW/FOB)',
     regional_targets: [
       { code: 'CN', label: 'China (CN)' },
@@ -525,7 +539,7 @@ export const userSourcingRequestDetailsById: Record<string, UserSourcingRequestD
     description:
       '200 rolls of premium silk-blend fabric with custom dye lot matching for Nairobi retail partners.',
     quantity: '200 Rolls',
-    budget_total: '$8,200.00',
+    budget_total: 'KSh 1,107,000',
     budget_subtitle: 'Estimated Total (EXW)',
     regional_targets: [
       { code: 'AE', label: 'Dubai (AE)' },
@@ -535,7 +549,7 @@ export const userSourcingRequestDetailsById: Record<string, UserSourcingRequestD
     quotes: [
       {
         id: 'q-u2-1',
-        unit_price: '$41.00',
+        unit_price: 'KSh 5,535',
         lead_time: '21 Days',
         shipment: 'FOB Jebel Ali',
         notes: 'MOQ met. Includes lab dip approval before bulk run.',
@@ -544,7 +558,7 @@ export const userSourcingRequestDetailsById: Record<string, UserSourcingRequestD
     ],
     quote_date: 'September 18, 2024',
     destination_port: 'Nairobi (KE-NBO)',
-    estimated_budget_range: '$7,500 - $9,000 USD',
+    estimated_budget_range: 'KSh 1,012,500 - KSh 1,215,000',
   },
   'usr-3': {
     id: 'usr-3',
@@ -556,14 +570,14 @@ export const userSourcingRequestDetailsById: Record<string, UserSourcingRequestD
     description:
       'Replacement drill heads and pneumatic couplers for mining equipment maintenance program.',
     quantity: '120 Units',
-    budget_total: 'Est. $4,500',
+    budget_total: 'Est. KSh 607,500',
     budget_subtitle: 'Target Budget Range',
     regional_targets: [{ code: 'CN', label: 'China (CN)' }],
     attachments: [],
     quotes: [],
     quote_date: 'September 12, 2024',
     destination_port: 'Mombasa (KE-MBA)',
-    estimated_budget_range: '$4,000 - $5,500 USD',
+    estimated_budget_range: 'KSh 540,000 - KSh 742,500',
   },
 };
 
@@ -620,7 +634,7 @@ export const adminDashboardSourcingRows: DashboardSourcingRow[] = [
     vendor: 'Longi Solar HK',
     status_tags: [{ label: 'Pending Quote', variant: 'orange' }],
     time_ago: '2 hours ago',
-    primary_action: { label: 'Provide Quote', style: 'solid' },
+    primary_action: { label: 'View Details', style: 'outline' },
   },
   {
     id: 'dash-sr-2',
@@ -645,8 +659,7 @@ export const adminDashboardSourcingRows: DashboardSourcingRow[] = [
       { label: 'Pending Quote', variant: 'orange' },
     ],
     time_ago: '1 day ago',
-    primary_action: { label: 'Pay Vendor', style: 'solid' },
-    secondary_action: { label: 'View Details', style: 'outline' },
+    primary_action: { label: 'View Details', style: 'outline' },
   },
   {
     id: 'dash-sr-4',
@@ -828,9 +841,32 @@ export interface UserSourcingRequestItem {
   status_variant: 'orange' | 'blue' | 'gray';
 }
 
+export interface AdminMarketplaceOrderRow {
+  id: string;
+  order_number: string;
+  title: string;
+  vendor: string;
+  origin_flag: string;
+  image_url: string;
+  status: string;
+  status_icon: 'transit' | 'delivered' | 'processing';
+  price_kes: string;
+  customer_name: string;
+  customer_detail: string;
+  date_value: string;
+  primary_action: string;
+  secondary_action: string;
+}
+
+export interface UserMarketplaceOrderDetail {
+  order: UserMarketplaceOrder;
+  shipment: Shipment | null;
+}
+
 export interface UserMarketplaceOrder {
   id: string;
   order_number: string;
+  tracking_id?: string | null;
   title: string;
   vendor: string;
   origin_flag: string;
@@ -850,7 +886,7 @@ export interface UserMarketplaceOrder {
 export const userSourcingSummary = {
   active: 12,
   pending_quotes: 4,
-  procured_total: '$42k',
+  procured_total: 'KSh 5.7M',
 };
 
 export const userSourcingRequestsList: UserSourcingRequestItem[] = [
@@ -859,7 +895,7 @@ export const userSourcingRequestsList: UserSourcingRequestItem[] = [
     request_number: 'DBK-99021',
     title: 'High-Grade Photovoltaic Inverters (50 units)',
     origin: 'CN',
-    price: '$12,500.00',
+    price: 'KSh 1,687,500',
     status: 'QUOTED',
     status_variant: 'orange',
   },
@@ -868,7 +904,7 @@ export const userSourcingRequestsList: UserSourcingRequestItem[] = [
     request_number: 'DBK-98774',
     title: 'Premium Textile Fabric Rolls (Silk Blend)',
     origin: 'AE',
-    price: '$8,200.00',
+    price: 'KSh 1,107,000',
     status: 'PROCESSING',
     status_variant: 'blue',
   },
@@ -877,11 +913,18 @@ export const userSourcingRequestsList: UserSourcingRequestItem[] = [
     request_number: 'DBK-98661',
     title: 'Pneumatic Drilling Components',
     origin: 'CN',
-    price: 'Est. $4,500',
+    price: 'Est. KSh 607,500',
     status: 'PENDING QUOTE',
     status_variant: 'gray',
   },
 ];
+
+export interface CategorySampleProduct {
+  id: string;
+  name: string;
+  image_url: string;
+  price: string;
+}
 
 export interface ExploreCategory {
   id: string;
@@ -889,6 +932,7 @@ export interface ExploreCategory {
   origin: string;
   product_count: number;
   image_url: string;
+  sample_products?: CategorySampleProduct[];
 }
 
 export interface MarketplaceProduct {
@@ -902,6 +946,8 @@ export interface MarketplaceProduct {
   price_aed: string;
   image_url: string;
   cta: 'cart' | 'quote';
+  stock: number;
+  min_order?: number;
 }
 
 export interface AdminCategoryCard {
@@ -929,12 +975,23 @@ export interface AdminInventoryItem {
   name: string;
   category: string;
   origin: 'CN' | 'AE' | 'KE';
+  origin_label: string;
   image_url: string;
   stock: number;
   low_stock: boolean;
+  status: 'draft' | 'published';
   value: string;
   marketplace_price: string;
   stock_levels: AdminInventoryStockLevel[];
+}
+
+export interface AdminInventoryHubCount {
+  hub: 'CN' | 'AE' | 'KE';
+  label: string;
+  flag: string;
+  product_count: number;
+  published_count: number;
+  stock_units: number;
 }
 
 export interface AdminInventoryKpis {
@@ -943,6 +1000,7 @@ export interface AdminInventoryKpis {
   total_inventory_value: string;
   hubs_label: string;
   low_stock_count: number;
+  hub_counts?: AdminInventoryHubCount[];
 }
 
 export const adminInventoryKpis: AdminInventoryKpis = {

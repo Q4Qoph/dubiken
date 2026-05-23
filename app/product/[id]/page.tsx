@@ -1,38 +1,23 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import SiteHeader from '@/components/SiteHeader';
-import {
-  ChevronRight,
-  Minus,
-  Plus,
-  ShieldCheck,
-  Truck,
-  Check,
-} from 'lucide-react';
+import { ChevronLeft, ChevronRight, Minus, Plus } from 'lucide-react';
 import SiteFooter from '@/components/SiteFooter';
-import { getProductById, getRelatedProducts } from '@/lib/data';
-import { useCart } from '@/hooks/use-cart';
+import ProductCard from '@/components/ProductCard';
+import { useProduct, useRelatedProducts } from '@/lib/api/hooks';
+import { usePromptedCart } from '@/hooks/use-prompted-cart';
+import { formatKshLabel } from '@/lib/currency';
+import {
+  marketplaceProductHref,
+  marketplaceReturnHref,
+} from '@/lib/marketplace-navigation';
 
 const BLUE = '#004aad';
 const SECTION_BG = '#eff4ff';
 const ORANGE_SAVE = '#ff924d';
-
-interface Product {
-  id: string;
-  name: string;
-  sku: string;
-  price: number;
-  original_price: number | null;
-  origin: string;
-  image_url: string;
-  images: string[];
-  specs: Record<string, string>;
-  currency_ke: string;
-  currency_ae: string;
-  description: string;
-}
 
 function SpecRow({ label, value }: { label: string; value: string }) {
   return (
@@ -45,25 +30,35 @@ function SpecRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-export default function ProductDetailPage({ params }: { params: { id: string } }) {
-  const [product, setProduct] = useState<Product | null>(null);
-  const [relatedProducts, setRelatedProducts] = useState<
-    Awaited<ReturnType<typeof getRelatedProducts>>
-  >([]);
+function ProductDetailContent({ params }: { params: { id: string } }) {
+  const searchParams = useSearchParams();
+  const marketplaceBackHref = useMemo(
+    () => marketplaceReturnHref(searchParams),
+    [searchParams],
+  );
+  const { data: product, isLoading } = useProduct(params.id);
+  const { data: relatedProducts = [] } = useRelatedProducts(params.id, 4);
   const [activeImage, setActiveImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
-  const [activeTab, setActiveTab] = useState<'specs' | 'logistics' | 'reviews'>('specs');
-  const [shippingDest, setShippingDest] = useState<'mombasa' | 'jebel'>('mombasa');
-  const { addItem } = useCart();
+  const [buyNowLoading, setBuyNowLoading] = useState(false);
+  const { addToCart, buyNow, GuestCartPrompt } = usePromptedCart();
 
-  useEffect(() => {
-    getProductById(params.id).then((data) => {
-      if (data) setProduct(data);
-    });
-    getRelatedProducts(params.id, 4).then(setRelatedProducts);
-  }, [params.id]);
+  function cartPayload() {
+    if (!product) return null;
+    return {
+      id: product.id,
+      productId: product.id,
+      name: product.name,
+      sku: product.sku,
+      unitPrice: 0,
+      unitPriceKes: product.price_kes,
+      origin: product.origin,
+      imageUrl: product.image_url,
+      quantity,
+    };
+  }
 
-  if (!product) {
+  if (isLoading || !product) {
     return (
       <div className="min-h-screen bg-white flex flex-col">
         <SiteHeader />
@@ -74,43 +69,49 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
     );
   }
 
-  const savePct = product.original_price
-    ? Math.round((1 - product.price / product.original_price) * 100)
-    : null;
+  const showComparePrice =
+    product.compare_at_price_kes != null &&
+    product.save_percent != null &&
+    product.save_percent > 0;
   const images =
     product.images?.length > 0 ? product.images : [product.image_url].filter(Boolean);
 
-  const techSpecs = [
-    { label: 'Nominal AC Power', value: product.specs.nominalACPower },
-    { label: 'Max Input Voltage', value: product.specs.maxInputVoltage },
-    { label: 'Efficiency', value: product.specs.efficiency },
-    { label: 'Cooling System', value: product.specs.coolingSystem },
-  ].filter((s) => s.value);
-
-  const buildSpecs = [
-    { label: 'Protection Class', value: product.specs.protectionClass },
-    { label: 'Weight', value: product.specs.weight },
-    { label: 'Certification', value: product.specs.certification },
-    { label: 'Warranty', value: product.specs.warranty },
-  ].filter((s) => s.value);
-
+  const specEntries = Object.entries(product.specs ?? {}).filter(([, v]) => v?.trim());
+  const mid = Math.ceil(specEntries.length / 2);
+  const techSpecs = specEntries.slice(0, mid).map(([label, value]) => ({
+    label: label.replace(/([A-Z])/g, ' $1').replace(/^./, (s) => s.toUpperCase()),
+    value,
+  }));
+  const buildSpecs = specEntries.slice(mid).map(([label, value]) => ({
+    label: label.replace(/([A-Z])/g, ' $1').replace(/^./, (s) => s.toUpperCase()),
+    value,
+  }));
   return (
     <div className="min-h-screen bg-white flex flex-col">
       <SiteHeader />
+      <GuestCartPrompt />
 
-      {/* Breadcrumbs */}
       <div className="border-b border-[#e5eeff] bg-white">
         <div className="max-w-[1280px] mx-auto px-6 py-2.5">
+          <Link
+            href={marketplaceBackHref}
+            className="inline-flex items-center gap-1 text-sm font-semibold text-[#434653] hover:text-[#004aad] mb-2"
+          >
+            <ChevronLeft className="w-4 h-4" />
+            Back to marketplace
+          </Link>
           <nav className="flex items-center gap-1.5 text-xs text-[#737784]">
-            <Link href="/" className="hover:underline">
-              Industrial Sourcing
+            <Link href={marketplaceBackHref} className="hover:underline">
+              Marketplace
             </Link>
+            {product.category ? (
+              <>
+                <ChevronRight className="w-3 h-3" />
+                <span className="text-[#434653]">{product.category}</span>
+              </>
+            ) : null}
             <ChevronRight className="w-3 h-3" />
-            <Link href="/" className="hover:underline">
-              Energy Systems
-            </Link>
-            <ChevronRight className="w-3 h-3" />
-            <span className="text-[#434653]">Solar Inverters</span>
+            <span className="text-[#434653] truncate max-w-[200px] sm:max-w-none">{product.name}</span>
           </nav>
         </div>
       </div>
@@ -159,65 +160,23 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
 
               <div className="flex flex-wrap items-baseline gap-3 mb-1">
                 <span className="text-3xl font-bold" style={{ color: BLUE }}>
-                  ${product.price.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  {formatKshLabel(product.price_kes)}
                 </span>
-                {product.original_price && (
+                {showComparePrice ? (
                   <>
                     <span className="text-lg text-[#737784] line-through font-normal">
-                      ${product.original_price.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      {formatKshLabel(product.compare_at_price_kes!)}
                     </span>
-                    {savePct && (
-                      <span
-                        className="text-xs font-bold text-white px-2 py-0.5 rounded"
-                        style={{ backgroundColor: ORANGE_SAVE }}
-                      >
-                        SAVE {savePct}%
-                      </span>
-                    )}
+                    <span
+                      className="text-xs font-bold text-white px-2 py-0.5 rounded"
+                      style={{ backgroundColor: ORANGE_SAVE }}
+                    >
+                      SAVE {product.save_percent}%
+                    </span>
                   </>
-                )}
+                ) : null}
               </div>
-              <p className="text-sm text-[#737784] mb-6">
-                Approx. {product.currency_ke} / {product.currency_ae}
-              </p>
-
               {/* Shipping — light blue box */}
-              <div className="rounded-lg p-4 mb-5 border border-[#dce9ff]" style={{ backgroundColor: SECTION_BG }}>
-                <p className="text-sm font-bold text-black mb-3">Shipping Destination</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setShippingDest('mombasa')}
-                    className={`relative flex items-start gap-2 border rounded p-3 text-left bg-white ${
-                      shippingDest === 'mombasa' ? 'border-[#004aad] border-2' : 'border-[#c3c6d5]'
-                    }`}
-                  >
-                    {shippingDest === 'mombasa' && (
-                      <Check className="w-4 h-4 absolute top-2 right-2" style={{ color: BLUE }} />
-                    )}
-                    <div>
-                      <p className="text-xs font-bold text-black">Mombasa, KE</p>
-                      <p className="text-xs text-[#737784]">14-21 Days</p>
-                    </div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShippingDest('jebel')}
-                    className={`relative flex items-start gap-2 border rounded p-3 text-left bg-white ${
-                      shippingDest === 'jebel' ? 'border-[#004aad] border-2' : 'border-[#c3c6d5]'
-                    }`}
-                  >
-                    {shippingDest === 'jebel' && (
-                      <Check className="w-4 h-4 absolute top-2 right-2" style={{ color: BLUE }} />
-                    )}
-                    <div>
-                      <p className="text-xs font-bold text-black">Jebel Ali, AE</p>
-                      <p className="text-xs text-[#737784]">5-7 Days</p>
-                    </div>
-                  </button>
-                </div>
-              </div>
-
               <p className="text-sm font-medium text-black mb-2">Quantity</p>
               <div className="flex items-center mb-6 w-fit border border-[#c3c6d5] rounded overflow-hidden">
                 <button
@@ -240,145 +199,95 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
               </div>
 
               <div className="space-y-3 mb-6">
-                <Link
-                  href="/checkout"
-                  className="block w-full text-center py-3.5 rounded text-sm font-bold text-white uppercase tracking-wide hover:opacity-90"
-                  style={{ backgroundColor: BLUE }}
-                >
-                  BUY NOW
-                </Link>
                 <button
                   type="button"
-                  onClick={() =>
-                    addItem({
-                      id: product.id,
-                      name: product.name,
-                      sku: product.sku,
-                      unitPrice: product.price,
-                      origin: product.origin,
-                      imageUrl: product.image_url,
-                      quantity,
-                    })
-                  }
+                  disabled={buyNowLoading}
+                  onClick={async () => {
+                    const payload = cartPayload();
+                    if (!payload) return;
+                    setBuyNowLoading(true);
+                    try {
+                      await buyNow(payload);
+                    } finally {
+                      setBuyNowLoading(false);
+                    }
+                  }}
+                  className="block w-full text-center py-3.5 rounded text-sm font-bold text-white uppercase tracking-wide hover:opacity-90 disabled:opacity-70"
+                  style={{ backgroundColor: BLUE }}
+                >
+                  {buyNowLoading ? 'Processing…' : 'BUY NOW'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const payload = cartPayload();
+                    if (payload) void addToCart(payload);
+                  }}
                   className="w-full py-3.5 rounded text-sm font-bold uppercase tracking-wide border-2 bg-white hover:bg-[#f8f9ff]"
                   style={{ borderColor: BLUE, color: BLUE }}
                 >
                   ADD TO CART
                 </button>
               </div>
-
-              <div className="space-y-2.5 pt-2 border-t border-[#e5eeff]">
-                <div className="flex items-center gap-2 text-xs text-[#434653]">
-                  <ShieldCheck className="w-4 h-4 shrink-0" style={{ color: BLUE }} />
-                  <span>Verified Manufacturer: Suzhou Solar-Tech Ltd.</span>
-                </div>
-                <div className="flex items-center gap-2 text-xs text-[#434653]">
-                  <Truck className="w-4 h-4 shrink-0" style={{ color: BLUE }} />
-                  <span>Full logistics &amp; customs clearing included</span>
-                </div>
-              </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Tabs */}
       <section className="border-t border-[#e5eeff] bg-white">
-        <div className="max-w-[1280px] mx-auto px-6">
-          <div className="flex border-b border-[#e5eeff]">
-            {(
-              [
-                { id: 'specs' as const, label: 'Specifications' },
-                { id: 'logistics' as const, label: 'Logistics Details' },
-                { id: 'reviews' as const, label: 'Reviews (12)' },
-              ] as const
-            ).map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id)}
-                className={`px-5 py-3.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
-                  activeTab === tab.id
-                    ? 'border-[#004aad] text-[#004aad]'
-                    : 'border-transparent text-[#737784]'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          {activeTab === 'specs' && (
-            <div className="py-10">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20">
-                <div>
-                  <h3 className="text-base font-bold text-black mb-4">Technical Performance</h3>
-                  {techSpecs.map((s) => (
-                    <SpecRow key={s.label} label={s.label} value={s.value!} />
-                  ))}
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-black mb-4">Build &amp; Compliance</h3>
-                  {buildSpecs.map((s) => (
-                    <SpecRow key={s.label} label={s.label} value={s.value!} />
-                  ))}
-                </div>
+        <div className="max-w-[1280px] mx-auto px-6 py-10">
+          <h2 className="text-base font-bold text-black mb-4">Specifications</h2>
+          {specEntries.length === 0 ? (
+            <p className="text-sm text-[#737784]">No specifications listed for this product.</p>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20">
+              <div>
+                {techSpecs.map((s) => (
+                  <SpecRow key={s.label} label={s.label} value={s.value} />
+                ))}
               </div>
-            </div>
-          )}
-
-          {activeTab === 'logistics' && (
-            <div className="py-10 text-sm text-[#434653]">
-              <p>Lead time 14–21 days to Mombasa via sea freight. Customs clearance and last-mile delivery available.</p>
-            </div>
-          )}
-
-          {activeTab === 'reviews' && (
-            <div className="py-10 text-sm text-[#434653]">
-              <p>12 verified buyer reviews for this SKU.</p>
+              {buildSpecs.length > 0 ? (
+                <div>
+                  <h3 className="text-base font-bold text-black mb-4">Additional details</h3>
+                  {buildSpecs.map((s) => (
+                    <SpecRow key={s.label} label={s.label} value={s.value} />
+                  ))}
+                </div>
+              ) : null}
             </div>
           )}
         </div>
       </section>
 
-      {/* Commonly sourced together */}
-      <section className="bg-white py-10 border-t border-[#e5eeff]">
-        <div className="max-w-[1280px] mx-auto px-6">
-          <h2 className="text-xl font-bold mb-6" style={{ color: BLUE }}>
-            Commonly Sourced Together
-          </h2>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {relatedProducts.map((item) => (
-              <Link
-                key={item.id}
-                href={`/product/${item.id}`}
-                className="border border-[#c3c6d5] rounded-lg overflow-hidden bg-white hover:border-[#004aad]"
-              >
-                <div className="bg-[#eff4ff] h-36 flex items-center justify-center p-2">
-                  {item.image_url ? (
-                    <img
-                      src={item.image_url}
-                      alt={item.name}
-                      className="max-h-full max-w-full object-contain"
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-[#dce9ff]" />
-                  )}
-                </div>
-                <div className="p-3">
-                  <p className="text-[10px] text-[#737784] mb-1">{item.origin} | Origin</p>
-                  <p className="text-xs font-bold text-black leading-snug line-clamp-2 mb-2">
-                    {item.name}
-                  </p>
-                  <p className="text-sm font-bold" style={{ color: BLUE }}>
-                    ${item.price.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                  </p>
-                </div>
-              </Link>
-            ))}
+      {relatedProducts.length > 0 ? (
+        <section className="bg-white py-10 border-t border-[#e5eeff]">
+          <div className="max-w-[1280px] mx-auto px-6">
+            <h2 className="text-xl font-bold mb-6" style={{ color: BLUE }}>
+              Other products
+            </h2>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5">
+              {relatedProducts.map((item) => (
+                <ProductCard
+                  key={item.id}
+                  href={marketplaceProductHref(item.id, {
+                    hub: searchParams.get('hub') ?? undefined,
+                    category: searchParams.get('category') ?? undefined,
+                    search: searchParams.get('search') ?? undefined,
+                  })}
+                  product={{
+                    productId: item.id,
+                    name: item.name,
+                    image_url: item.image_url,
+                    origin: item.origin,
+                    price_kes: item.price_kes,
+                    stock: item.stock,
+                  }}
+                />
+              ))}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      ) : null}
 
       {/* CTA banner — light blue */}
       <section className="py-10" style={{ backgroundColor: SECTION_BG }}>
@@ -391,7 +300,7 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
             wholesale prices. Request a custom quote for your project.
           </p>
           <Link
-            href="/admin/sourcing"
+            href="/dashboard/sourcing/new"
             className="inline-block px-5 py-2.5 rounded text-xs font-bold text-white uppercase tracking-wide bg-black hover:opacity-90"
           >
             REQUEST CUSTOM QUOTE
@@ -401,5 +310,22 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
 
       <SiteFooter />
     </div>
+  );
+}
+
+export default function ProductDetailPage({ params }: { params: { id: string } }) {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-white flex flex-col">
+          <SiteHeader />
+          <div className="flex-1 flex items-center justify-center text-[#737784]">
+            Loading product...
+          </div>
+        </div>
+      }
+    >
+      <ProductDetailContent params={params} />
+    </Suspense>
   );
 }

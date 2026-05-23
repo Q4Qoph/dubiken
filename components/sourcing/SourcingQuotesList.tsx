@@ -1,7 +1,7 @@
 'use client';
 
 import { ShieldCheck } from 'lucide-react';
-import type { SourcingQuoteReceived } from '@/lib/mock-data';
+import type { SourcingQuoteReceived } from '@/lib/types';
 
 const BLUE = '#004aad';
 

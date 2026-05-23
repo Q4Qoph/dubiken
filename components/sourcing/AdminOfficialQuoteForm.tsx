@@ -2,14 +2,16 @@
 
 import { useEffect, useState } from 'react';
 import { Send, FileEdit } from 'lucide-react';
-import { saveAdminOfficialQuote } from '@/lib/data';
-import type { SourcingQuoteReceived } from '@/lib/mock-data';
+import { useSaveOfficialQuoteMutation } from '@/lib/api/hooks';
+import type { SourcingQuoteReceived } from '@/lib/types';
+import { TRANSPORT_TYPES } from '@/lib/contracts';
+import { stripCurrencyPrefix } from '@/lib/currency';
 
 const BLUE = '#004aad';
 const BLUE_DARK = '#00357f';
 const SECTION_BG = '#eff4ff';
 
-const transportOptions = ['FOB Ningbo', 'CIF Mombasa', 'EXW Shenzhen', 'DAP Nairobi'];
+const transportOptions = [...TRANSPORT_TYPES];
 
 export interface QuoteFormValues {
   unitPrice: string;
@@ -26,8 +28,8 @@ function emptyValues(): QuoteFormValues {
 function valuesFromQuote(quote: SourcingQuoteReceived | null | undefined): QuoteFormValues {
   if (!quote) return emptyValues();
   return {
-    unitPrice: quote.unit_price.replace(/^\$/, ''),
-    shippingCost: quote.shipping_cost?.replace(/^\$/, '') ?? '',
+    unitPrice: stripCurrencyPrefix(quote.unit_price),
+    shippingCost: quote.shipping_cost ? stripCurrencyPrefix(quote.shipping_cost) : '',
     transport: quote.shipment,
     leadDays: quote.lead_time.match(/\d+/)?.[0] ?? '',
     notes: quote.notes,
@@ -49,7 +51,7 @@ export default function AdminOfficialQuoteForm({
 }: AdminOfficialQuoteFormProps) {
   const hasQuote = Boolean(initialQuote);
   const [values, setValues] = useState<QuoteFormValues>(() => valuesFromQuote(initialQuote));
-  const [saving, setSaving] = useState(false);
+  const saveQuote = useSaveOfficialQuoteMutation(requestId);
   const [savedFlash, setSavedFlash] = useState(false);
 
   useEffect(() => {
@@ -60,9 +62,8 @@ export default function AdminOfficialQuoteForm({
 
   async function handleSave() {
     if (!values.unitPrice.trim() || !values.transport || !values.leadDays.trim()) return;
-    setSaving(true);
     try {
-      await saveAdminOfficialQuote(requestId, {
+      await saveQuote.mutateAsync({
         unit_price: values.unitPrice,
         shipping_cost: values.shippingCost,
         transport: values.transport,
@@ -72,8 +73,8 @@ export default function AdminOfficialQuoteForm({
       setSavedFlash(true);
       onSaved();
       setTimeout(() => setSavedFlash(false), 2000);
-    } finally {
-      setSaving(false);
+    } catch {
+      /* ApiError surfaced by parent if needed */
     }
   }
 
@@ -119,10 +120,12 @@ export default function AdminOfficialQuoteForm({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
         <div>
           <label className="block text-xs font-bold text-[#434653] mb-1.5">
-            Unit Price (USD) <span className="text-red-600">*</span>
+            Unit price (KSh) <span className="text-red-600">*</span>
           </label>
           <div className="flex border border-[#c3c6d5] rounded-lg overflow-hidden">
-            <span className="px-3 py-2.5 bg-[#f8f9ff] text-sm text-[#737784] border-r border-[#c3c6d5]">$</span>
+            <span className="px-3 py-2.5 bg-[#f8f9ff] text-sm font-semibold text-[#434653] border-r border-[#c3c6d5]">
+              KSh
+            </span>
             <input
               type="text"
               inputMode="decimal"
@@ -134,9 +137,11 @@ export default function AdminOfficialQuoteForm({
           </div>
         </div>
         <div>
-          <label className="block text-xs font-bold text-[#434653] mb-1.5">Shipping Cost (USD)</label>
+          <label className="block text-xs font-bold text-[#434653] mb-1.5">Shipping cost (KSh)</label>
           <div className="flex border border-[#c3c6d5] rounded-lg overflow-hidden">
-            <span className="px-3 py-2.5 bg-[#f8f9ff] text-sm text-[#737784] border-r border-[#c3c6d5]">$</span>
+            <span className="px-3 py-2.5 bg-[#f8f9ff] text-sm font-semibold text-[#434653] border-r border-[#c3c6d5]">
+              KSh
+            </span>
             <input
               type="text"
               inputMode="decimal"
@@ -202,13 +207,13 @@ export default function AdminOfficialQuoteForm({
         )}
         <button
           type="button"
-          disabled={saving}
+          disabled={saveQuote.isPending}
           onClick={handleSave}
           className="flex items-center gap-2 px-5 py-2.5 text-xs font-bold rounded-lg text-white disabled:opacity-50"
           style={{ backgroundColor: BLUE_DARK }}
         >
           <Send className="w-4 h-4" />
-          {saving ? 'Saving…' : hasQuote ? 'Save Changes' : 'Issue Official Quote'}
+          {saveQuote.isPending ? 'Saving…' : hasQuote ? 'Save Changes' : 'Issue Official Quote'}
         </button>
       </div>
     </section>

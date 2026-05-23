@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   Plus,
@@ -10,8 +9,8 @@ import {
   Wallet,
   ChevronDown,
 } from 'lucide-react';
-import { getUserSourcingDashboard } from '@/lib/data';
-import type { UserSourcingRequestItem } from '@/lib/mock-data';
+import { useUserSourcingDashboard } from '@/lib/api/hooks';
+import type { UserSourcingRequestItem } from '@/lib/types';
 
 const BLUE = '#004aad';
 const BLUE_DARK = '#00357f';
@@ -23,15 +22,9 @@ const statusDot: Record<UserSourcingRequestItem['status_variant'], string> = {
 };
 
 export default function UserSourcingPage() {
-  const [summary, setSummary] = useState({ active: 0, pending_quotes: 0, procured_total: '$0' });
-  const [requests, setRequests] = useState<UserSourcingRequestItem[]>([]);
-
-  useEffect(() => {
-    getUserSourcingDashboard().then((data) => {
-      setSummary(data.summary);
-      setRequests(data.requests);
-    });
-  }, []);
+  const { data, isLoading } = useUserSourcingDashboard();
+  const summary = data?.summary ?? { active: 0, pending_quotes: 0, procured_total: 'KSh 0' };
+  const requests = data?.requests ?? [];
 
   return (
     <div className="p-6 lg:p-8 bg-white min-h-full">
@@ -54,7 +47,7 @@ export default function UserSourcingPage() {
         </Link>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
         <div className="bg-white border border-[#e5eeff] rounded-lg p-5">
           <div className="flex justify-between items-start mb-2">
             <p className="text-[10px] font-bold uppercase text-[#737784]">Active Requests</p>
@@ -81,18 +74,6 @@ export default function UserSourcingPage() {
           <p className="text-3xl font-bold" style={{ color: BLUE_DARK }}>
             {summary.procured_total}
           </p>
-        </div>
-        <div
-          className="rounded-lg p-5 text-white"
-          style={{ backgroundColor: BLUE_DARK }}
-        >
-          <p className="text-[10px] font-bold uppercase opacity-90 mb-2">Market Insight</p>
-          <p className="text-xs leading-relaxed opacity-95">
-            Dubai-to-Nairobi lane volume up 18% this quarter.
-          </p>
-          <button type="button" className="text-xs font-bold mt-3 underline hover:opacity-80">
-            View Trends →
-          </button>
         </div>
       </div>
 

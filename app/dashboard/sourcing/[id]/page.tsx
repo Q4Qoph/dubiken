@@ -1,11 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { FileText, Plus } from 'lucide-react';
-import { getUserSourcingRequestById } from '@/lib/data';
-import type { UserSourcingRequestDetail } from '@/lib/mock-data';
+import { useUserSourcingDetail } from '@/lib/api/hooks';
+import type { UserSourcingRequestDetail } from '@/lib/types';
 import SourcingQuotesList from '@/components/sourcing/SourcingQuotesList';
 
 const BLUE = '#004aad';
@@ -20,13 +19,9 @@ const statusDot: Record<UserSourcingRequestDetail['status_variant'], string> = {
 export default function UserSourcingDetailPage() {
   const params = useParams();
   const id = typeof params.id === 'string' ? params.id : '';
-  const [detail, setDetail] = useState<UserSourcingRequestDetail | null | undefined>(undefined);
+  const { data: detail, isLoading } = useUserSourcingDetail(id);
 
-  useEffect(() => {
-    if (id) getUserSourcingRequestById(id).then(setDetail);
-  }, [id]);
-
-  if (detail === undefined) {
+  if (isLoading) {
     return <div className="p-8 text-sm text-[#737784] bg-white min-h-full">Loading request…</div>;
   }
 
@@ -98,6 +93,17 @@ export default function UserSourcingDetailPage() {
             {detail.budget_total}
           </p>
           <p className="text-xs text-[#737784] mt-1">{detail.budget_subtitle}</p>
+          {detail.delivery_county || detail.delivery_address ? (
+            <div className="mt-4 pt-4 border-t border-[#e5eeff] text-sm">
+              <p className="text-[10px] font-bold uppercase text-[#737784] mb-1">Delivery</p>
+              {detail.delivery_county ? (
+                <p className="font-bold text-black">{detail.delivery_county}</p>
+              ) : null}
+              {detail.delivery_address ? (
+                <p className="text-[#434653] mt-1 leading-relaxed">{detail.delivery_address}</p>
+              ) : null}
+            </div>
+          ) : null}
           <div className="flex flex-wrap gap-2 mt-4">
             {detail.regional_targets.map((t) => (
               <span

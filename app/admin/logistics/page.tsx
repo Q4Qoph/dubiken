@@ -1,55 +1,42 @@
 'use client';
 
 import { Filter, Plus, TrendingUp, ArrowRight } from 'lucide-react';
+import { useMounted } from '@/hooks/use-mounted';
 import AdminPageFooter from '@/components/admin/AdminPageFooter';
+import { useAdminAnalytics, useShipments } from '@/lib/api/hooks';
+import { formatKshLabelFromKes } from '@/lib/currency';
+import type { Shipment } from '@/lib/types';
 
 const BLUE = '#004aad';
 const BLUE_DARK = '#00357f';
 const ORANGE = '#ff924d';
 const MAP_BG = '#2d3748';
 
-const shipments = [
-  {
-    id: 'DBK-CN-8842',
-    commodity: 'Electronics (Solar Panels)',
-    origin: 'CN',
-    dest: 'KE',
-    status: 'IN TRANSIT',
-    statusClass: 'bg-[#eff4ff] text-[#004aad] border-[#dce9ff]',
-    eta: 'Oct 24, 2024',
+function hubFromCity(city: string): string {
+  const c = city.toLowerCase();
+  if (c.includes('dubai') || c.includes('jebel')) return 'AE';
+  if (c.includes('nairobi') || c.includes('mombasa') || c.includes('kenya')) return 'KE';
+  if (c.includes('shenzhen') || c.includes('ningbo') || c.includes('china')) return 'CN';
+  return city.slice(0, 2).toUpperCase();
+}
+
+function mapShipmentRow(s: Shipment) {
+  const status = s.current_status.toUpperCase();
+  let statusClass = 'bg-[#eff4ff] text-[#004aad] border-[#dce9ff]';
+  if (status.includes('CUSTOM')) statusClass = 'bg-red-50 text-red-700 border-red-200';
+  else if (status.includes('PORT')) statusClass = 'bg-orange-50 text-orange-700 border-orange-200';
+  const eta = s.milestones?.find((m) => !m.done)?.date ?? '—';
+  return {
+    id: s.tracking_id,
+    commodity: s.vessel ? `${s.vessel}` : s.current_status,
+    origin: hubFromCity(s.origin_city),
+    dest: hubFromCity(s.destination_city),
+    status,
+    statusClass,
+    eta,
     action: 'Manage',
-  },
-  {
-    id: 'DBK-AE-1102',
-    commodity: 'Spare Parts (Automotive)',
-    origin: 'AE',
-    dest: 'KE',
-    status: 'AT PORT',
-    statusClass: 'bg-orange-50 text-orange-700 border-orange-200',
-    eta: 'Oct 18, 2024',
-    action: 'Manage',
-  },
-  {
-    id: 'DBK-CN-4459',
-    commodity: 'Textiles (Rolls)',
-    origin: 'CN',
-    dest: 'AE',
-    status: 'CUSTOMS',
-    statusClass: 'bg-red-50 text-red-700 border-red-200',
-    eta: 'Oct 29, 2024',
-    action: 'Alert Team',
-  },
-  {
-    id: 'DBK-KE-2201',
-    commodity: 'Industrial Valves',
-    origin: 'CN',
-    dest: 'KE',
-    status: 'IN TRANSIT',
-    statusClass: 'bg-[#eff4ff] text-[#004aad] border-[#dce9ff]',
-    eta: 'Nov 02, 2024',
-    action: 'Manage',
-  },
-];
+  };
+}
 
 function RoutePill({ code }: { code: string }) {
   return (
@@ -59,7 +46,29 @@ function RoutePill({ code }: { code: string }) {
   );
 }
 
+function statusBucket(status: string): 'port' | 'transit' | 'customs' | 'other' {
+  const s = status.toUpperCase();
+  if (s.includes('PORT')) return 'port';
+  if (s.includes('CUSTOM')) return 'customs';
+  if (s.includes('TRANSIT') || s.includes('SEA') || s.includes('VESSEL')) return 'transit';
+  return 'other';
+}
+
 export default function AdminLogisticsPage() {
+  const mounted = useMounted();
+  const { data: shipmentRows = [], isLoading } = useShipments();
+  const { dashboard } = useAdminAnalytics();
+  const kpiPending = !mounted || isLoading;
+  const shipments = shipmentRows.map(mapShipmentRow);
+  const buckets = shipmentRows.reduce(
+    (acc, s) => {
+      const b = statusBucket(s.current_status);
+      acc[b] += 1;
+      return acc;
+    },
+    { port: 0, transit: 0, customs: 0, other: 0 },
+  );
+
   return (
     <div className="flex flex-col min-h-full bg-[#f8f9ff]">
       <div className="flex-1 p-6 lg:p-8">
@@ -162,15 +171,23 @@ export default function AdminLogisticsPage() {
           <div className="space-y-4">
             <div className="bg-white border border-[#e5eeff] rounded-lg p-5">
               <p className="text-[10px] font-bold uppercase tracking-wider text-[#737784] mb-1">
-                In Transit Value
+                Marketplace revenue (28d)
               </p>
               <p className="text-3xl font-bold" style={{ color: BLUE_DARK }}>
-                $1.4M
+                {dashboard?.kpis
+                  ? formatKshLabelFromKes(dashboard.kpis.global_sales_usd)
+                  : kpiPending
+                    ? '…'
+                    : '—'}
               </p>
-              <div className="flex items-center gap-1.5 mt-2">
-                <TrendingUp className="w-4 h-4 text-green-600" />
-                <span className="text-xs font-semibold text-green-600">+12% from last month</span>
-              </div>
+              {dashboard?.kpis?.global_sales_change ? (
+                <div className="flex items-center gap-1.5 mt-2">
+                  <TrendingUp className="w-4 h-4 text-green-600" />
+                  <span className="text-xs font-semibold text-green-600">
+                    {dashboard.kpis.global_sales_change}
+                  </span>
+                </div>
+              ) : null}
             </div>
 
             <div className="bg-white border border-[#e5eeff] rounded-lg p-5">
@@ -178,13 +195,13 @@ export default function AdminLogisticsPage() {
                 Active Shipments
               </p>
               <p className="text-3xl font-bold" style={{ color: ORANGE }}>
-                48
+                {kpiPending ? '…' : shipments.length}
               </p>
               <div className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-[#e5eeff]">
                 {[
-                  { label: 'At Port', value: 12 },
-                  { label: 'Transit', value: 28 },
-                  { label: 'Customs', value: 8 },
+                  { label: 'At Port', value: buckets.port },
+                  { label: 'Transit', value: buckets.transit },
+                  { label: 'Customs', value: buckets.customs },
                 ].map((item) => (
                   <div key={item.label} className="text-center">
                     <p className="text-lg font-bold" style={{ color: BLUE_DARK }}>
@@ -218,6 +235,13 @@ export default function AdminLogisticsPage() {
                 </tr>
               </thead>
               <tbody>
+                {isLoading && shipments.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-5 py-8 text-sm text-[#737784]">
+                      Loading shipments…
+                    </td>
+                  </tr>
+                ) : null}
                 {shipments.map((s) => (
                   <tr
                     key={s.id}
