@@ -42,7 +42,7 @@ export default function SourcingQuotesList({
             <div className="flex items-center gap-2 mb-3">
               <ShieldCheck className="w-4 h-4" style={{ color: BLUE }} />
               <span className="text-xs font-bold text-black">
-                {q.official ? 'Dubiken Official Quote' : 'Supplier Quote'}
+                {q.official ? 'Dubiken quote' : 'Quote'}
               </span>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">

@@ -44,7 +44,7 @@ export default function UserOrdersPage() {
           }`}
           style={tab === 'marketplace' ? { backgroundColor: BLUE } : { color: BLUE, borderColor: BLUE }}
         >
-          Marketplace
+          Purchases
         </button>
         <button
           type="button"
@@ -54,7 +54,7 @@ export default function UserOrdersPage() {
           }`}
           style={tab === 'sourcing' ? { backgroundColor: BLUE } : { color: BLUE, borderColor: BLUE }}
         >
-          Sourcing
+          Requests
         </button>
       </div>
 
@@ -65,13 +65,13 @@ export default function UserOrdersPage() {
           ) : orders.length === 0 ? (
             <div className="text-center py-16 px-4 bg-white border border-[#e5eeff] rounded-lg">
               <Package className="w-10 h-10 mx-auto mb-3 text-[#c3c6d5]" />
-              <p className="text-sm text-[#737784] mb-4">No marketplace orders yet.</p>
+              <p className="text-sm text-[#737784] mb-4">No purchases yet.</p>
               <Link
                 href="/marketplace"
                 className="inline-flex px-4 py-2 rounded-lg text-sm font-bold text-white"
                 style={{ backgroundColor: BLUE_DARK }}
               >
-                Shop marketplace
+                Start shopping
               </Link>
             </div>
           ) : (
@@ -145,7 +145,7 @@ export default function UserOrdersPage() {
             className="inline-flex items-center gap-2 text-sm font-bold mt-2"
             style={{ color: BLUE }}
           >
-            + New Sourcing Request
+            + Request a product
           </Link>
         </div>
       )}

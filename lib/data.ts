@@ -196,35 +196,44 @@ export async function saveAdminCategory(
   return api.apiSaveAdminCategory(input) as Promise<AdminCategoryCard>;
 }
 
+const EMPTY_HOME_FEED = {
+  categories: [] as ExploreCategory[],
+  products: [] as MarketplaceProduct[],
+};
+
 export async function getHomeFeed(): Promise<{
   categories: ExploreCategory[];
   products: MarketplaceProduct[];
 }> {
-  const res = await api.apiGetHomeFeed();
-  return {
-    categories: (res?.categories ?? []).map((c) => ({
-      id: c.id,
-      name: c.name,
-      origin: c.origin,
-      product_count: c.product_count,
-      image_url: c.image_url,
-      sample_products: c.sample_products ?? [],
-    })),
-    products: (res?.products ?? []).map((p) => ({
-      id: p.id,
-      productId: p.product_id,
-      name: p.name,
-      vendor: p.vendor,
-      origin: p.origin,
-      price_usd: p.price_usd,
-      price_kes: p.price_kes,
-      price_aed: p.price_aed,
-      image_url: p.image_url,
-      cta: p.cta,
-      stock: p.stock ?? 0,
-      min_order: p.min_order,
-    })),
-  };
+  try {
+    const res = await api.apiGetHomeFeed();
+    return {
+      categories: (res?.categories ?? []).map((c) => ({
+        id: c.id,
+        name: c.name,
+        origin: c.origin,
+        product_count: c.product_count,
+        image_url: c.image_url,
+        sample_products: c.sample_products ?? [],
+      })),
+      products: (res?.products ?? []).map((p) => ({
+        id: p.id,
+        productId: p.product_id,
+        name: p.name,
+        vendor: p.vendor,
+        origin: p.origin,
+        price_usd: p.price_usd,
+        price_kes: p.price_kes,
+        price_aed: p.price_aed,
+        image_url: p.image_url,
+        cta: p.cta,
+        stock: p.stock ?? 0,
+        min_order: p.min_order,
+      })),
+    };
+  } catch {
+    return EMPTY_HOME_FEED;
+  }
 }
 
 export async function getExploreCategories(page = 1, pageSize = 12): Promise<{
