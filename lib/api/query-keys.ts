@@ -17,6 +17,7 @@ export const queryKeys = {
   },
   home: ['home', 'feed'] as const,
   categories: {
+    exploreAll: ['categories', 'explore'] as const,
     explore: (page?: number, pageSize?: number) =>
       ['categories', 'explore', page, pageSize] as const,
   },

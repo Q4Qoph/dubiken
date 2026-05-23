@@ -4,6 +4,7 @@ import type {
   CategoryStatus,
   ProductStatus,
   HubCode,
+  MarketFilter,
   MarketplaceCta,
   SourcingShippingMethod,
   SourcingUnit,
@@ -214,8 +215,6 @@ export interface UserSourcingRequestDetailDto {
 }
 
 // ——— Admin sourcing ———
-
-export type MarketFilter = 'all' | HubCode;
 
 export interface AdminSourcingListFilters {
   market?: MarketFilter;

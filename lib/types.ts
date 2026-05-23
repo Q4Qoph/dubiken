@@ -24,4 +24,4 @@ export type {
   Product,
   RelatedProduct,
   InventoryCatalogItem,
-} from './mock-data';
+} from './domain-types';

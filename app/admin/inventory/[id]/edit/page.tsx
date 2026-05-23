@@ -140,32 +140,34 @@ export default function EditInventoryProductPage({ params }: { params: { id: str
     form.stock >= 0;
 
   async function handleSave(listingStatus?: 'draft' | 'published') {
-    const status = listingStatus ?? form.status;
+    const f = form;
+    if (!f || !product) return;
+    const status = listingStatus ?? f.status;
     const publishing = status === 'published';
     if ((publishing && !canSave) || updateProduct.isPending) return;
-    if (!form.name.trim() || !form.sku.trim()) return;
-    const priceKes = parseFloat(form.priceKes);
+    if (!f.name.trim() || !f.sku.trim()) return;
+    const priceKes = parseFloat(f.priceKes);
     setSaveError(null);
     try {
       await updateProduct.mutateAsync({
-        name: form.name.trim(),
-        sku: form.sku.trim(),
-        category: form.category,
-        brand: form.brand.trim() || undefined,
-        description: form.description.trim(),
-        primary_origin: form.primaryOrigin,
+        name: f.name.trim(),
+        sku: f.sku.trim(),
+        category: f.category,
+        brand: f.brand.trim() || undefined,
+        description: f.description.trim(),
+        primary_origin: f.primaryOrigin,
         price_kes: Math.round(priceKes),
         compare_at_price_kes: (() => {
-          const raw = form.compareAtPriceKes.trim();
+          const raw = f.compareAtPriceKes.trim();
           if (!raw) return null;
           const kes = parseFloat(raw);
           return Number.isFinite(kes) && kes > 0 ? Math.round(kes) : null;
         })(),
-        stock: Math.max(0, form.stock),
-        min_order: Math.max(1, form.minOrder),
-        image_url: form.mainImage ?? product.image_url,
-        images: [form.mainImage ?? product.image_url, ...form.otherImages].slice(0, 8),
-        attributes: form.attributes
+        stock: Math.max(0, f.stock),
+        min_order: Math.max(1, f.minOrder),
+        image_url: f.mainImage ?? product.image_url,
+        images: [f.mainImage ?? product.image_url, ...f.otherImages].slice(0, 8),
+        attributes: f.attributes
           .filter((a) => a.feature.trim() && a.value.trim())
           .map((a) => ({ feature: a.feature.trim(), value: a.value.trim() })),
         status,
@@ -197,7 +199,9 @@ export default function EditInventoryProductPage({ params }: { params: { id: str
         const { url } = await uploadImage.mutateAsync(file);
         urls.push(url);
       }
-      update('otherImages', [...form.otherImages, ...urls].slice(0, 8));
+      const f = form;
+      if (!f) return;
+      update('otherImages', [...f.otherImages, ...urls].slice(0, 8));
     } catch {
       setSaveError('Image upload failed.');
     }
