@@ -1,4 +1,5 @@
-import { apiRequest, getAccessToken } from './client';
+import { clearAuthSessionOnUnauthorized } from '@/lib/auth-session';
+import { apiRequest, buildApiUrl, getAccessToken } from './client';
 import { API_PATHS } from './paths';
 import type {
   AdminCategoryDto,
@@ -13,6 +14,8 @@ import type {
   CheckoutCompleteResponse,
   CheckoutShippingRequest,
   CheckoutShippingResponse,
+  GuestCheckoutRequest,
+  GuestCheckoutResponse,
   AdminInventoryProductDetail,
   CreateInventoryProductRequest,
   CreateSourcingRequestBody,
@@ -21,6 +24,7 @@ import type {
   MarketplaceProductDto,
   PaginatedResponse,
   ProductDetailDto,
+  RelatedProductDto,
   RegisterRequest,
   UpdateCartItemRequest,
   UpsertCategoryRequest,
@@ -31,6 +35,7 @@ import type {
   UserSourcingRequestDetailDto,
   UserSourcingRequestListItem,
 } from '@/lib/contracts';
+import { normalizeTrackingId } from '@/lib/tracking-id';
 import type {
   AdminDashboardKpis,
   DashboardSourcingRow,
@@ -39,6 +44,7 @@ import type {
   AdminMarketplaceOrderRow,
   SourcingOrderRow,
   UserMarketplaceOrder,
+  UserMarketplaceOrderDetail,
 } from '@/lib/types';
 
 function token() {
@@ -83,7 +89,7 @@ export async function apiGetProduct(id: string): Promise<ProductDetailDto | null
 }
 
 export async function apiGetRelatedProducts(id: string, limit = 4) {
-  const res = await apiRequest<{ data: ProductDetailDto[] }>(
+  const res = await apiRequest<{ data: RelatedProductDto[] }>(
     API_PATHS.products.related(id),
     { query: { limit } },
   );
@@ -165,6 +171,13 @@ export async function apiCheckoutComplete(body: CheckoutCompleteRequest) {
   });
 }
 
+export async function apiGuestCheckout(body: GuestCheckoutRequest) {
+  return apiRequest<GuestCheckoutResponse>(API_PATHS.checkout.guest, {
+    method: 'POST',
+    body,
+  });
+}
+
 // ——— User sourcing & orders ———
 
 export async function apiGetUserSourcingDashboard(): Promise<UserSourcingDashboardResponse> {
@@ -202,6 +215,18 @@ export async function apiGetUserMarketplaceOrders(): Promise<UserMarketplaceOrde
     { token: token() },
   );
   return res.data;
+}
+
+export async function apiGetUserMarketplaceOrder(
+  id: string,
+): Promise<UserMarketplaceOrderDetail | null> {
+  try {
+    return await apiRequest<UserMarketplaceOrderDetail>(API_PATHS.me.marketplaceOrder(id), {
+      token: token(),
+    });
+  } catch {
+    return null;
+  }
 }
 
 // ——— Admin ———
@@ -329,6 +354,14 @@ export async function apiGetAdminMarketplaceOrders(): Promise<AdminMarketplaceOr
   return res.data;
 }
 
+export async function apiUpdateMarketplaceOrderStatus(id: string, status: string) {
+  return apiRequest<AdminMarketplaceOrderRow>(API_PATHS.admin.order(id), {
+    method: 'PATCH',
+    body: { status },
+    token: token(),
+  });
+}
+
 // ——— Shipments ———
 
 export async function apiListShipments(): Promise<Shipment[]> {
@@ -339,8 +372,24 @@ export async function apiListShipments(): Promise<Shipment[]> {
 }
 
 export async function apiGetShipment(trackingId: string): Promise<Shipment | null> {
+  const normalized = normalizeTrackingId(trackingId);
+  if (!normalized) return null;
   try {
-    return await apiRequest<Shipment>(API_PATHS.shipments.byTracking(trackingId));
+    return await apiRequest<Shipment>(
+      API_PATHS.shipments.byTracking(encodeURIComponent(normalized)),
+    );
+  } catch {
+    return null;
+  }
+}
+
+export async function apiGetMyShipment(trackingId: string): Promise<Shipment | null> {
+  const normalized = normalizeTrackingId(trackingId);
+  if (!normalized) return null;
+  try {
+    return await apiRequest<Shipment>(API_PATHS.me.shipmentByTracking(normalized), {
+      token: token(),
+    });
   } catch {
     return null;
   }
@@ -352,17 +401,16 @@ export async function apiUploadImage(file: File): Promise<{ url: string }> {
   const form = new FormData();
   form.append('file', file);
   const accessToken = token();
-  const base = (process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3001/api/v1').replace(
-    /\/$/,
-    '',
-  );
-  const res = await fetch(`${base}${API_PATHS.uploads.image}`, {
+  const res = await fetch(buildApiUrl(API_PATHS.uploads.image), {
     method: 'POST',
     headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
     body: form,
   });
   const json = await res.json();
   if (!res.ok) {
+    if (res.status === 401) {
+      clearAuthSessionOnUnauthorized(API_PATHS.uploads.image, !!accessToken);
+    }
     throw new Error(json?.error?.message ?? 'Upload failed');
   }
   return json as { url: string };

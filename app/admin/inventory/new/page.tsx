@@ -57,7 +57,9 @@ interface FormState {
   description: string;
   primaryOrigin: HubCode;
   priceKes: string;
+  compareAtPriceKes: string;
   stock: number;
+  minOrder: number;
   /** Maps to product.image_url — inventory thumbnail & default PDP hero */
   mainImage: string | null;
   /** Maps to product.images (excluding main) — PDP gallery thumbnails */
@@ -73,7 +75,9 @@ const initialForm: FormState = {
   description: '',
   primaryOrigin: 'CN',
   priceKes: '',
+  compareAtPriceKes: '',
   stock: 0,
+  minOrder: 1,
   mainImage: null,
   otherImages: [],
   attributes: [{ id: '1', feature: '', value: '' }],
@@ -138,7 +142,8 @@ export default function ProductOnboardingPage() {
       form.category.length > 0 &&
       form.description.trim().length > 0;
     const price = parseFloat(form.priceKes);
-    const s2 = !Number.isNaN(price) && price > 0 && form.stock > 0;
+    const s2 =
+      !Number.isNaN(price) && price > 0 && form.stock > 0 && form.minOrder > 0;
     const s3 = !!form.mainImage;
     return { 1: s1, 2: s2, 3: s3, 4: s1 && s2 && s3 };
   }, [form]);
@@ -223,26 +228,39 @@ export default function ProductOnboardingPage() {
     if (currentStep > 1) setCurrentStep((s) => s - 1);
   }
 
-  async function handleSubmit() {
-    if (!stepValid[4] || createProduct.isPending) return;
+  async function saveProduct(status: 'draft' | 'published') {
+    if (createProduct.isPending) return;
+    if (!form.name.trim() || !form.sku.trim()) return;
+    if (status === 'published' && !stepValid[4]) return;
+
     const priceKes = parseFloat(form.priceKes);
-    if (!form.mainImage || Number.isNaN(priceKes)) return;
+    const imageUrl =
+      form.mainImage ??
+      'https://images.pexels.com/photos/448361/pexels-photo-448361.jpeg?auto=compress&cs=tinysrgb&w=400';
 
     try {
       await createProduct.mutateAsync({
         name: form.name.trim(),
         sku: form.sku.trim(),
-        category: form.category,
+        category: form.category || 'Uncategorized',
         brand: form.brand.trim() || undefined,
-        description: form.description.trim(),
+        description: form.description.trim() || form.name.trim(),
         primary_origin: form.primaryOrigin,
-        price_usd: kesToUsd(priceKes),
-        stock: Math.max(1, form.stock),
-        image_url: form.mainImage,
-        images: [form.mainImage, ...form.otherImages].slice(0, 8),
+        price_kes: Number.isFinite(priceKes) && priceKes > 0 ? Math.round(priceKes) : 1,
+        compare_at_price_kes: (() => {
+          const raw = form.compareAtPriceKes.trim();
+          if (!raw) return null;
+          const kes = parseFloat(raw);
+          return Number.isFinite(kes) && kes > 0 ? Math.round(kes) : null;
+        })(),
+        stock: status === 'published' ? Math.max(1, form.stock) : Math.max(0, form.stock),
+        min_order: Math.max(1, form.minOrder),
+        image_url: imageUrl,
+        images: [imageUrl, ...form.otherImages].slice(0, 8),
         attributes: form.attributes
           .filter((a) => a.feature.trim() && a.value.trim())
           .map((a) => ({ feature: a.feature.trim(), value: a.value.trim() })),
+        status,
       });
     } catch {
       return;
@@ -406,7 +424,7 @@ export default function ProductOnboardingPage() {
               <div className="space-y-6">
                 <h2 className="text-sm font-bold text-black">Pricing & Stock</h2>
                 <div className="max-w-xs">
-                  <FieldLabel htmlFor="priceKes">Marketplace Price *</FieldLabel>
+                  <FieldLabel htmlFor="priceKes">Price (KES) *</FieldLabel>
                   <input
                     id="priceKes"
                     type="number"
@@ -417,6 +435,37 @@ export default function ProductOnboardingPage() {
                     placeholder="573750"
                     className={inputClass()}
                   />
+                </div>
+
+                <div className="max-w-xs">
+                  <FieldLabel htmlFor="compareAtPriceKes">Compare-at price (KES)</FieldLabel>
+                  <input
+                    id="compareAtPriceKes"
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={form.compareAtPriceKes}
+                    onChange={(e) => update('compareAtPriceKes', e.target.value)}
+                    placeholder="Optional — SAVE % calculated on save"
+                    className={inputClass()}
+                  />
+                </div>
+
+                <div className="max-w-xs">
+                  <FieldLabel htmlFor="minOrder">Minimum order (units) *</FieldLabel>
+                  <input
+                    id="minOrder"
+                    type="number"
+                    min={1}
+                    value={form.minOrder}
+                    onChange={(e) =>
+                      update('minOrder', Math.max(1, parseInt(e.target.value, 10) || 1))
+                    }
+                    className={inputClass()}
+                  />
+                  <p className="text-[10px] text-[#737784] mt-1">
+                    Shown on marketplace cards as Min: N Units
+                  </p>
                 </div>
 
                 <div className="max-w-md">
@@ -706,20 +755,21 @@ export default function ProductOnboardingPage() {
                 <>
                   <button
                     type="button"
-                    onClick={() => setLastSaved('just now')}
-                    className="px-5 py-2.5 text-xs font-bold border-2 rounded-lg bg-white"
+                    onClick={() => saveProduct('draft')}
+                    disabled={!form.name.trim() || !form.sku.trim()}
+                    className="px-5 py-2.5 text-xs font-bold border-2 rounded-lg bg-white disabled:opacity-50"
                     style={{ borderColor: BLUE, color: BLUE }}
                   >
                     Save Draft
                   </button>
                   <button
                     type="button"
-                    onClick={handleSubmit}
+                    onClick={() => saveProduct('published')}
                     disabled={!stepValid[4]}
                     className="px-6 py-2.5 text-xs font-bold uppercase rounded-lg text-white disabled:opacity-50"
                     style={{ backgroundColor: BLUE_DARK }}
                   >
-                    Add to Inventory
+                    Publish to Marketplace
                   </button>
                 </>
               )}

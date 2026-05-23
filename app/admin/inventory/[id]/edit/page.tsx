@@ -20,8 +20,6 @@ import {
   useUploadImageMutation,
 } from '@/lib/api/hooks';
 import type { AdminInventoryProductDetail } from '@/lib/contracts';
-import { kesToUsd, usdToKes } from '@/lib/currency';
-
 const BLUE = '#004aad';
 const BLUE_DARK = '#00357f';
 const LOW_STOCK_THRESHOLD = 25;
@@ -48,8 +46,10 @@ interface FormState {
   description: string;
   primaryOrigin: HubCode;
   priceKes: string;
+  compareAtPriceKes: string;
   stock: number;
-  onMarketplace: boolean;
+  minOrder: number;
+  status: 'draft' | 'published';
   mainImage: string | null;
   otherImages: string[];
   attributes: Attribute[];
@@ -63,9 +63,12 @@ function detailToForm(d: AdminInventoryProductDetail): FormState {
     brand: d.brand ?? '',
     description: d.description,
     primaryOrigin: d.primary_origin,
-    priceKes: String(usdToKes(d.price_usd)),
+    priceKes: String(d.price_kes),
+    compareAtPriceKes:
+      d.compare_at_price_kes != null ? String(d.compare_at_price_kes) : '',
     stock: d.stock,
-    onMarketplace: d.on_marketplace,
+    minOrder: d.min_order ?? 1,
+    status: d.status ?? (d.on_marketplace ? 'published' : 'draft'),
     mainImage: d.image_url,
     otherImages: d.gallery_images ?? [],
     attributes:
@@ -136,8 +139,11 @@ export default function EditInventoryProductPage({ params }: { params: { id: str
     parseFloat(form.priceKes) > 0 &&
     form.stock >= 0;
 
-  async function handleSave() {
-    if (!canSave || updateProduct.isPending) return;
+  async function handleSave(listingStatus?: 'draft' | 'published') {
+    const status = listingStatus ?? form.status;
+    const publishing = status === 'published';
+    if ((publishing && !canSave) || updateProduct.isPending) return;
+    if (!form.name.trim() || !form.sku.trim()) return;
     const priceKes = parseFloat(form.priceKes);
     setSaveError(null);
     try {
@@ -148,14 +154,21 @@ export default function EditInventoryProductPage({ params }: { params: { id: str
         brand: form.brand.trim() || undefined,
         description: form.description.trim(),
         primary_origin: form.primaryOrigin,
-        price_usd: kesToUsd(priceKes),
+        price_kes: Math.round(priceKes),
+        compare_at_price_kes: (() => {
+          const raw = form.compareAtPriceKes.trim();
+          if (!raw) return null;
+          const kes = parseFloat(raw);
+          return Number.isFinite(kes) && kes > 0 ? Math.round(kes) : null;
+        })(),
         stock: Math.max(0, form.stock),
-        image_url: form.mainImage!,
-        images: [form.mainImage!, ...form.otherImages].slice(0, 8),
+        min_order: Math.max(1, form.minOrder),
+        image_url: form.mainImage ?? product.image_url,
+        images: [form.mainImage ?? product.image_url, ...form.otherImages].slice(0, 8),
         attributes: form.attributes
           .filter((a) => a.feature.trim() && a.value.trim())
           .map((a) => ({ feature: a.feature.trim(), value: a.value.trim() })),
-        on_marketplace: form.onMarketplace,
+        status,
       });
       router.push('/admin/inventory');
     } catch {
@@ -205,8 +218,19 @@ export default function EditInventoryProductPage({ params }: { params: { id: str
         <h1 className="text-2xl font-bold mb-1" style={{ color: BLUE_DARK }}>
           Edit product
         </h1>
-        <p className="text-sm text-[#737784] mb-6">
-          Update listing details, stock, images, and marketplace visibility.
+        <p className="text-sm text-[#737784] mb-2">
+          Update listing details, stock, and images.
+        </p>
+        <p className="mb-6">
+          <span
+            className={`inline-block text-[10px] font-bold uppercase px-2.5 py-1 rounded-full border ${
+              form.status === 'published'
+                ? 'bg-green-50 text-green-800 border-green-200'
+                : 'bg-amber-50 text-amber-900 border-amber-200'
+            }`}
+          >
+            {form.status === 'published' ? 'Published — visible on marketplace' : 'Draft — not visible to buyers'}
+          </span>
         </p>
 
         {saveError ? (
@@ -298,24 +322,10 @@ export default function EditInventoryProductPage({ params }: { params: { id: str
           </section>
 
           <section className="bg-white border border-[#e5eeff] rounded-lg p-5 space-y-4">
-            <h2 className="text-sm font-bold text-black">Marketplace</h2>
-            <label className="flex items-center gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={form.onMarketplace}
-                onChange={(e) => update('onMarketplace', e.target.checked)}
-                className="rounded"
-              />
-              <span className="text-sm text-[#434653]">
-                <span className="font-bold text-black">Show on marketplace & home</span>
-                <span className="block text-xs text-[#737784] mt-0.5">
-                  When enabled, buyers see this product on /marketplace and the home page.
-                </span>
-              </span>
-            </label>
+            <h2 className="text-sm font-bold text-black">Pricing & stock</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <FieldLabel htmlFor="priceKes">Price *</FieldLabel>
+                <FieldLabel htmlFor="priceKes">Price (KES) *</FieldLabel>
                 <input
                   id="priceKes"
                   type="number"
@@ -323,6 +333,32 @@ export default function EditInventoryProductPage({ params }: { params: { id: str
                   step="1"
                   value={form.priceKes}
                   onChange={(e) => update('priceKes', e.target.value)}
+                  className={inputClass()}
+                />
+              </div>
+              <div>
+                <FieldLabel htmlFor="compareAtPriceKes">Compare-at price (KES)</FieldLabel>
+                <input
+                  id="compareAtPriceKes"
+                  type="number"
+                  min="0"
+                  step="1"
+                  placeholder="Optional — SAVE % when above price"
+                  value={form.compareAtPriceKes}
+                  onChange={(e) => update('compareAtPriceKes', e.target.value)}
+                  className={inputClass()}
+                />
+              </div>
+              <div>
+                <FieldLabel htmlFor="minOrder">Minimum order (units) *</FieldLabel>
+                <input
+                  id="minOrder"
+                  type="number"
+                  min={1}
+                  value={form.minOrder}
+                  onChange={(e) =>
+                    update('minOrder', Math.max(1, parseInt(e.target.value, 10) || 1))
+                  }
                   className={inputClass()}
                 />
               </div>
@@ -479,15 +515,31 @@ export default function EditInventoryProductPage({ params }: { params: { id: str
             <ArrowLeft className="w-4 h-4" />
             Cancel
           </Link>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={!canSave || updateProduct.isPending}
-            className="px-6 py-2.5 text-xs font-bold uppercase rounded-lg text-white disabled:opacity-50"
-            style={{ backgroundColor: BLUE_DARK }}
-          >
-            {updateProduct.isPending ? 'Saving…' : 'Save changes'}
-          </button>
+          <div className="flex flex-col items-end gap-1">
+            <div className="flex flex-wrap gap-2 justify-end">
+              <button
+                type="button"
+                onClick={() => handleSave('draft')}
+                disabled={!form.name.trim() || !form.sku.trim() || updateProduct.isPending}
+                className="px-5 py-2.5 text-xs font-bold border-2 rounded-lg bg-white disabled:opacity-50"
+                style={{ borderColor: BLUE, color: BLUE }}
+              >
+                {updateProduct.isPending ? 'Saving…' : 'Save as draft'}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSave('published')}
+                disabled={!canSave || updateProduct.isPending}
+                className="px-6 py-2.5 text-xs font-bold uppercase rounded-lg text-white disabled:opacity-50"
+                style={{ backgroundColor: BLUE_DARK }}
+              >
+                {updateProduct.isPending ? 'Saving…' : 'Publish to marketplace'}
+              </button>
+            </div>
+            <p className="text-[10px] text-[#737784] max-w-xs text-right">
+              Draft keeps the product hidden. Publish makes it visible to buyers.
+            </p>
+          </div>
         </div>
       </div>
       <AdminPageFooter />

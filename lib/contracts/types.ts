@@ -2,11 +2,11 @@ import type {
   AdminSourcingStatus,
   AttachmentType,
   CategoryStatus,
+  ProductStatus,
   HubCode,
   MarketplaceCta,
   SourcingShippingMethod,
   SourcingUnit,
-  SourcingUrgency,
   StatusVariant,
   TrendVariant,
   UserRole,
@@ -56,7 +56,7 @@ export interface LoginRequest {
 }
 
 export interface RegisterRequest {
-  company_name: string;
+  name: string;
   email: string;
   password: string;
 }
@@ -70,6 +70,7 @@ export interface CartItemDto {
   sku: string;
   quantity: number;
   unit_price: number;
+  unit_price_kes: number;
   origin: string;
   image_url: string;
 }
@@ -94,9 +95,22 @@ export interface UpdateCartItemRequest {
 export interface CheckoutShippingRequest {
   full_name: string;
   phone: string;
+  email: string;
   address: string;
   city: string;
   region: string;
+}
+
+export interface GuestCheckoutRequest {
+  items: { product_id: string; quantity: number }[];
+  shipping: CheckoutShippingRequest;
+  payment_method?: 'card' | 'bank_transfer' | 'wallet';
+}
+
+export interface GuestCheckoutResponse {
+  order_id: string;
+  order_number: string;
+  orders: { order_id: string; order_number: string }[];
 }
 
 export interface CheckoutSummary {
@@ -128,16 +142,15 @@ export interface CheckoutCompleteResponse {
 
 export interface CreateSourcingRequestBody {
   product_name: string;
-  category: string;
-  urgency: SourcingUrgency;
   description: string;
   origin: HubCode;
-  destination: string;
+  county: string;
+  delivery_address: string;
   quantity: string;
   unit: SourcingUnit;
   target_date: string;
   shipping_method: SourcingShippingMethod;
-  budget?: string;
+  budget: string;
   accept_terms: boolean;
 }
 
@@ -196,6 +209,8 @@ export interface UserSourcingRequestDetailDto {
   quote_date?: string;
   destination_port?: string;
   estimated_budget_range?: string;
+  delivery_county?: string;
+  delivery_address?: string;
 }
 
 // ——— Admin sourcing ———
@@ -293,22 +308,25 @@ export interface CreateInventoryProductRequest {
   brand?: string;
   description: string;
   primary_origin: HubCode;
-  price_usd: number;
+  price_kes: number;
+  compare_at_price_kes?: number | null;
   stock: number;
+  min_order?: number;
   image_url: string;
   images: string[];
   attributes: ProductAttributeDto[];
+  status?: ProductStatus;
   on_marketplace?: boolean;
   marketplace_cta?: MarketplaceCta;
-  original_price?: number | null;
 }
 
 export interface AdminInventoryProductDetail extends CreateInventoryProductRequest {
   id: string;
   gallery_images: string[];
+  status: ProductStatus;
   on_marketplace: boolean;
   marketplace_cta: MarketplaceCta;
-  original_price: number | null;
+  min_order: number;
 }
 
 export interface AdminInventoryListItem {
@@ -317,12 +335,23 @@ export interface AdminInventoryListItem {
   name: string;
   category: string;
   origin: HubCode;
+  origin_label: string;
   image_url: string;
   stock: number;
   low_stock: boolean;
+  status: ProductStatus;
   value: string;
   marketplace_price: string;
   stock_levels: { hub: HubCode; percent: number; low?: boolean }[];
+}
+
+export interface AdminInventoryHubCountDto {
+  hub: HubCode;
+  label: string;
+  flag: string;
+  product_count: number;
+  published_count: number;
+  stock_units: number;
 }
 
 export interface AdminInventoryKpisDto {
@@ -331,6 +360,7 @@ export interface AdminInventoryKpisDto {
   total_inventory_value: string;
   hubs_label: string;
   low_stock_count: number;
+  hub_counts?: AdminInventoryHubCountDto[];
 }
 
 // ——— Marketplace / storefront ———
@@ -346,6 +376,15 @@ export interface MarketplaceProductDto {
   price_aed: string;
   image_url: string;
   cta: MarketplaceCta;
+  stock: number;
+  min_order?: number;
+}
+
+export interface CategorySampleProductDto {
+  id: string;
+  name: string;
+  image_url: string;
+  price: string;
 }
 
 export interface ExploreCategoryDto {
@@ -354,14 +393,16 @@ export interface ExploreCategoryDto {
   origin: HubCode | string;
   product_count: number;
   image_url: string;
+  sample_products?: CategorySampleProductDto[];
 }
 
 export interface ProductDetailDto {
   id: string;
   name: string;
   sku: string;
-  price: number;
-  original_price: number | null;
+  price_kes: number;
+  compare_at_price_kes: number | null;
+  save_percent: number | null;
   origin: string;
   image_url: string;
   images: string[];
@@ -373,6 +414,16 @@ export interface ProductDetailDto {
   category: string;
   review_count: number;
   logistics_note: string;
+}
+
+export interface RelatedProductDto {
+  id: string;
+  name: string;
+  price: number;
+  price_kes: string;
+  origin: string;
+  image_url: string;
+  stock: number;
 }
 
 export interface AdminAnalyticsDto {

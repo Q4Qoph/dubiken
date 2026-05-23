@@ -28,6 +28,7 @@ export const queryKeys = {
     sourcing: ['me', 'sourcing'] as const,
     sourcingDetail: (id: string) => ['me', 'sourcing', id] as const,
     marketplaceOrders: ['me', 'orders', 'marketplace'] as const,
+    marketplaceOrder: (id: string) => ['me', 'orders', 'marketplace', id] as const,
     shipments: ['me', 'shipments'] as const,
   },
   admin: {

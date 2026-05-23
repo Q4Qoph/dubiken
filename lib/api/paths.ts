@@ -24,13 +24,17 @@ export const API_PATHS = {
   checkout: {
     shipping: '/checkout/shipping',
     complete: '/checkout/complete',
+    guest: '/checkout/guest',
   },
   me: {
     sourcing: '/me/sourcing',
     sourcingRequest: (id: string) => `/me/sourcing/requests/${id}`,
     sourcingRequests: '/me/sourcing/requests',
     marketplaceOrders: '/me/orders/marketplace',
+    marketplaceOrder: (id: string) => `/me/orders/marketplace/${id}`,
     shipments: '/me/shipments',
+    shipmentByTracking: (trackingId: string) =>
+      `/me/shipments/${encodeURIComponent(trackingId)}`,
   },
   admin: {
     dashboard: '/admin/dashboard',
@@ -45,6 +49,7 @@ export const API_PATHS = {
     sourcingRequest: (id: string) => `/admin/sourcing/requests/${id}`,
     sourcingQuote: (id: string) => `/admin/sourcing/requests/${id}/quote`,
     orders: '/admin/orders',
+    order: (id: string) => `/admin/orders/${id}`,
   },
   shipments: {
     root: '/shipments',

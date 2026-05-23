@@ -1,70 +1,76 @@
 'use client';
 
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import { safeRedirectPath } from '@/lib/safe-redirect';
 import AuthModeTabs from '@/components/auth/auth-mode-tabs';
-import AuthSocialButtons from '@/components/auth/auth-social-buttons';
+import PasswordField from '@/components/auth/password-field';
 import { AuthSubmitButton } from '@/components/auth/auth-submit-button';
 
 const inputClass =
   'w-full border border-[#e2e8f0] rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a7a]/30 focus:border-[#1a3a7a] transition-all';
 
 export default function RegisterPage() {
+  const searchParams = useSearchParams();
+  const redirect = safeRedirectPath(searchParams.get('redirect'));
+  const loginHref = redirect
+    ? `/auth/login?redirect=${encodeURIComponent(redirect)}`
+    : '/auth/login';
+
   return (
     <>
       <h2 className="text-2xl font-bold text-[#1a2d5a] mb-1">Create your account</h2>
-      <p className="text-[#718096] mb-8">Register to start sourcing across Kenya, Dubai, and China.</p>
+      <p className="text-[#718096] mb-8">Sign up to shop and track orders on Dubiken.</p>
 
       <AuthModeTabs />
 
       <form className="space-y-5" onSubmit={(e) => e.preventDefault()}>
         <div>
-          <label htmlFor="register-company" className="block text-sm font-medium text-[#2d3748] mb-1.5">
-            Company Name
+          <label htmlFor="register-name" className="block text-sm font-medium text-[#2d3748] mb-1.5">
+            Full name
           </label>
           <input
-            id="register-company"
-            name="company_name"
+            id="register-name"
+            name="name"
             type="text"
-            autoComplete="organization"
-            placeholder="Your company name"
+            autoComplete="name"
+            placeholder="Jane Doe"
             className={inputClass}
+            required
           />
         </div>
         <div>
           <label htmlFor="register-email" className="block text-sm font-medium text-[#2d3748] mb-1.5">
-            Email Address
+            Email address
           </label>
           <input
             id="register-email"
             name="email"
             type="email"
             autoComplete="email"
-            placeholder="name@company.com"
+            placeholder="you@email.com"
             className={inputClass}
+            required
           />
         </div>
         <div>
           <label htmlFor="register-password" className="block text-sm font-medium text-[#2d3748] mb-1.5">
             Password
           </label>
-          <input
+          <PasswordField
             id="register-password"
             name="password"
-            type="password"
             autoComplete="new-password"
-            placeholder="••••••••"
-            className={inputClass}
+            placeholder="At least 8 characters"
           />
         </div>
 
         <AuthSubmitButton mode="register" label="Create account" />
       </form>
 
-      <AuthSocialButtons />
-
       <p className="text-center text-sm text-[#718096] mt-6">
         Already have an account?{' '}
-        <Link href="/auth/login" className="text-[#1a3a7a] font-semibold hover:underline">
+        <Link href={loginHref} className="text-[#1a3a7a] font-semibold hover:underline">
           Log in
         </Link>
       </p>

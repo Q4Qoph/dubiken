@@ -20,10 +20,12 @@ import {
   getRecentOrders,
   getRelatedProducts,
   getShipmentByTrackingId,
+  getMyShipmentByTrackingId,
   getAdminMarketplaceOrders,
   getSourcingRequestById,
   getSourcingRequests,
   listShipments,
+  getUserMarketplaceOrder,
   getUserMarketplaceOrders,
   getUserSourcingDashboard,
   getUserSourcingRequestById,
@@ -35,6 +37,7 @@ import {
   type SourcingRequestFilters,
 } from '@/lib/data';
 import type {
+  CartResponse,
   CheckoutCompleteRequest,
   CheckoutShippingRequest,
   CreateInventoryProductRequest,
@@ -42,7 +45,20 @@ import type {
   RegisterRequest,
 } from '@/lib/contracts';
 import { getAccessToken } from './client';
+import { normalizeTrackingId } from '@/lib/tracking-id';
 import { getAuthSession } from '@/lib/auth-session';
+import { useMounted } from '@/hooks/use-mounted';
+
+function userInitials(name?: string | null): string {
+  if (!name?.trim()) return '—';
+  return name
+    .trim()
+    .split(/\s+/)
+    .map((w) => w[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+}
 
 function requiresAuth(extra?: boolean): boolean {
   if (extra === false) return false;
@@ -110,13 +126,14 @@ export function useRelatedProducts(id: string, limit = 4) {
   });
 }
 
-export function useMarketplaceProducts(hub?: string, category?: string) {
+export function useMarketplaceProducts(hub?: string, category?: string, search?: string) {
   const query: Record<string, string | number> = { page_size: 48 };
   if (hub && hub !== 'all') query.hub = hub;
   if (category) query.category = category;
+  if (search?.trim()) query.search = search.trim();
   return useQuery({
     queryKey: queryKeys.marketplace.products(query),
-    queryFn: () => getMarketplaceProducts(hub, category),
+    queryFn: () => getMarketplaceProducts(hub, category, search),
   });
 }
 
@@ -138,43 +155,50 @@ export function useHomePageData() {
 
 /** Logged-in user from session + optional refresh from /auth/me */
 export function useCurrentUser() {
+  const mounted = useMounted();
   const sessionQuery = useQuery({
     queryKey: ['auth', 'session-user'],
     queryFn: async () => {
-      if (typeof window === 'undefined') return null;
       const raw = localStorage.getItem('dubiken_session');
       if (!raw) return null;
       const parsed = JSON.parse(raw) as { loggedIn?: boolean; user?: import('@/lib/contracts').AuthUser };
       return parsed.loggedIn ? parsed.user ?? null : null;
     },
+    enabled: mounted,
   });
 
-  const meQuery = useAuthMe();
+  const token = mounted ? getAccessToken() : null;
+  const meQuery = useQuery({
+    queryKey: queryKeys.auth.me,
+    queryFn: () => api.apiAuthMe(),
+    enabled: mounted && !!token,
+  });
 
-  const session = typeof window !== 'undefined' ? getAuthSession() : null;
-  const user = meQuery.data ?? sessionQuery.data ?? session?.user ?? null;
-  const isLoggedIn = !!(session?.loggedIn && (session.access_token || user));
+  const session = mounted ? getAuthSession() : null;
+  const user = mounted ? (meQuery.data ?? sessionQuery.data ?? session?.user ?? null) : null;
+  const isLoggedIn =
+    mounted && !!(session?.loggedIn && (session.access_token || user));
 
   return {
     user,
     isLoggedIn,
-    isLoading: meQuery.isLoading,
+    mounted,
+    isLoading: !mounted || meQuery.isLoading || sessionQuery.isFetching,
     displayName: user?.name ?? 'Account',
     company: user?.company ?? '',
     role: user?.role,
     dashboardHref: user?.role === 'admin' ? '/admin' : '/dashboard',
-    initials: (user?.name ?? 'U')
-      .split(/\s+/)
-      .map((w) => w[0])
-      .join('')
-      .slice(0, 2)
-      .toUpperCase(),
+    initials: userInitials(user?.name),
   };
 }
 
 // ——— Cart & checkout ———
 
-const emptyCart = { items: [] as import('@/lib/contracts').CartItemDto[], item_count: 0, subtotal: 0 };
+const emptyCart: CartResponse = { items: [], item_count: 0, subtotal: 0 };
+
+function readCartCache(qc: ReturnType<typeof useQueryClient>): CartResponse {
+  return qc.getQueryData<CartResponse>(queryKeys.cart) ?? emptyCart;
+}
 
 export function useCartQuery() {
   return useQuery({
@@ -190,7 +214,26 @@ export function useAddCartItemMutation() {
   return useMutation({
     mutationFn: ({ product_id, quantity }: { product_id: string; quantity: number }) =>
       api.apiAddCartItem(product_id, quantity),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.cart }),
+    onMutate: async ({ product_id, quantity }) => {
+      await qc.cancelQueries({ queryKey: queryKeys.cart });
+      const previous = readCartCache(qc);
+      const existing = previous.items.find((i) => i.product_id === product_id);
+      const items = existing
+        ? previous.items.map((i) =>
+            i.product_id === product_id ? { ...i, quantity: i.quantity + quantity } : i,
+          )
+        : previous.items;
+      qc.setQueryData<CartResponse>(queryKeys.cart, {
+        ...previous,
+        items,
+        item_count: previous.item_count + quantity,
+      });
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) qc.setQueryData(queryKeys.cart, context.previous);
+    },
+    onSuccess: (data) => qc.setQueryData(queryKeys.cart, data),
   });
 }
 
@@ -199,7 +242,23 @@ export function useUpdateCartItemMutation() {
   return useMutation({
     mutationFn: ({ lineId, quantity }: { lineId: string; quantity: number }) =>
       api.apiUpdateCartItem(lineId, { quantity }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.cart }),
+    onMutate: async ({ lineId, quantity }) => {
+      await qc.cancelQueries({ queryKey: queryKeys.cart });
+      const previous = readCartCache(qc);
+      const line = previous.items.find((i) => i.id === lineId);
+      if (!line) return { previous };
+      const delta = quantity - line.quantity;
+      qc.setQueryData<CartResponse>(queryKeys.cart, {
+        ...previous,
+        items: previous.items.map((i) => (i.id === lineId ? { ...i, quantity } : i)),
+        item_count: previous.item_count + delta,
+      });
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) qc.setQueryData(queryKeys.cart, context.previous);
+    },
+    onSuccess: (data) => qc.setQueryData(queryKeys.cart, data),
   });
 }
 
@@ -207,7 +266,22 @@ export function useRemoveCartItemMutation() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (lineId: string) => api.apiRemoveCartItem(lineId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.cart }),
+    onMutate: async (lineId) => {
+      await qc.cancelQueries({ queryKey: queryKeys.cart });
+      const previous = readCartCache(qc);
+      const line = previous.items.find((i) => i.id === lineId);
+      if (!line) return { previous };
+      qc.setQueryData<CartResponse>(queryKeys.cart, {
+        ...previous,
+        items: previous.items.filter((i) => i.id !== lineId),
+        item_count: previous.item_count - line.quantity,
+      });
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) qc.setQueryData(queryKeys.cart, context.previous);
+    },
+    onSuccess: (data) => qc.setQueryData(queryKeys.cart, data),
   });
 }
 
@@ -224,6 +298,17 @@ export function useCheckoutCompleteMutation() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.cart });
       qc.invalidateQueries({ queryKey: queryKeys.me.marketplaceOrders });
+      qc.invalidateQueries({ queryKey: queryKeys.admin.orders });
+    },
+  });
+}
+
+export function useGuestCheckoutMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: import('@/lib/contracts').GuestCheckoutRequest) =>
+      api.apiGuestCheckout(body),
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.admin.orders });
     },
   });
@@ -260,6 +345,14 @@ export function useUserMarketplaceOrders() {
     queryKey: queryKeys.me.marketplaceOrders,
     queryFn: getUserMarketplaceOrders,
     enabled: requiresAuth(),
+  });
+}
+
+export function useUserMarketplaceOrder(id: string) {
+  return useQuery({
+    queryKey: queryKeys.me.marketplaceOrder(id),
+    queryFn: () => getUserMarketplaceOrder(id),
+    enabled: requiresAuth() && !!id,
   });
 }
 
@@ -390,6 +483,17 @@ export function useAdminMarketplaceOrders() {
   });
 }
 
+export function useUpdateMarketplaceOrderStatusMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) =>
+      api.apiUpdateMarketplaceOrderStatus(id, status),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.admin.orders });
+    },
+  });
+}
+
 export function useUploadImageMutation() {
   return useMutation({
     mutationFn: (file: File) => api.apiUploadImage(file),
@@ -399,10 +503,13 @@ export function useUploadImageMutation() {
 // ——— Shipments & dashboard ———
 
 export function useShipment(trackingId: string) {
+  const normalized = normalizeTrackingId(trackingId);
+  const authed = requiresAuth();
   return useQuery({
-    queryKey: queryKeys.shipments.byTracking(trackingId),
-    queryFn: () => getShipmentByTrackingId(trackingId),
-    enabled: !!trackingId.trim(),
+    queryKey: queryKeys.shipments.byTracking(normalized),
+    queryFn: () =>
+      authed ? getMyShipmentByTrackingId(normalized) : getShipmentByTrackingId(normalized),
+    enabled: !!normalized,
   });
 }
 

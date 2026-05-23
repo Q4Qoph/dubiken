@@ -20,6 +20,7 @@ export type {
   SourcingOrderRow,
   AdminMarketplaceOrderRow,
   UserMarketplaceOrder,
+  UserMarketplaceOrderDetail,
   Product,
   RelatedProduct,
   InventoryCatalogItem,

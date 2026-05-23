@@ -1,12 +1,17 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowRight } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useLoginMutation, useRegisterMutation } from '@/lib/api/hooks';
+import { queryKeys } from '@/lib/api/query-keys';
 import { ApiError } from '@/lib/api/client';
+import { apiAddCartItem } from '@/lib/api/services';
 import { setAuthSessionFromTokens } from '@/lib/auth-session';
 import type { LoginRequest, RegisterRequest } from '@/lib/contracts';
+import { takePendingCartAction } from '@/lib/pending-cart-action';
+import { safeRedirectPath } from '@/lib/safe-redirect';
 
 type Mode = 'login' | 'register';
 
@@ -18,6 +23,8 @@ export function AuthSubmitButton({
   label: string;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const qc = useQueryClient();
   const [error, setError] = useState<string | null>(null);
   const loginMutation = useLoginMutation();
   const registerMutation = useRegisterMutation();
@@ -39,13 +46,36 @@ export function AuthSubmitButton({
         const body: LoginRequest = { email, password };
         const res = await loginMutation.mutateAsync(body);
         setAuthSessionFromTokens(res);
+
+        const pending = takePendingCartAction();
+        if (pending) {
+          try {
+            await apiAddCartItem(pending.productId, pending.quantity);
+            await qc.invalidateQueries({ queryKey: queryKeys.cart });
+          } catch {
+            /* cart merge is best-effort */
+          }
+          if (pending.buyNow) {
+            router.push('/checkout');
+            return;
+          }
+        }
+
+        const redirect = safeRedirectPath(searchParams.get('redirect'));
+        if (redirect) {
+          router.push(redirect);
+          return;
+        }
         router.push(res.user.role === 'admin' ? '/admin' : '/dashboard');
       } else {
-        const company_name = String(fd.get('company_name') ?? '').trim();
-        const body: RegisterRequest = { company_name, email, password };
-        const res = await registerMutation.mutateAsync(body);
-        setAuthSessionFromTokens(res);
-        router.push('/dashboard');
+        const name = String(fd.get('name') ?? '').trim();
+        const body: RegisterRequest = { name, email, password };
+        await registerMutation.mutateAsync(body);
+        const params = new URLSearchParams({ registered: '1' });
+        if (email) params.set('email', email);
+        const redirectAfterRegister = safeRedirectPath(searchParams.get('redirect'));
+        if (redirectAfterRegister) params.set('redirect', redirectAfterRegister);
+        router.push(`/auth/login?${params.toString()}`);
       }
     } catch (err) {
       if (err instanceof ApiError) {

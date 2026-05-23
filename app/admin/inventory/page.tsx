@@ -13,7 +13,8 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { useAdminInventory, useAdminInventoryKpis } from '@/lib/api/hooks';
-import type { AdminInventoryItem, AdminInventoryKpis } from '@/lib/types';
+import { HUB_OPTIONS, PRODUCT_STATUS_LABELS } from '@/lib/contracts/enums';
+import type { AdminInventoryItem } from '@/lib/types';
 import AdminPageFooter from '@/components/admin/AdminPageFooter';
 
 const BLUE = '#004aad';
@@ -23,6 +24,8 @@ const PAGE_SIZE = 10;
 export default function AdminInventoryPage() {
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
+  const [hubFilter, setHubFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'published'>('all');
   const [page, setPage] = useState(1);
   const { data: items = [], isLoading: itemsLoading } = useAdminInventory(search);
   const { data: kpis, isLoading: kpisLoading } = useAdminInventoryKpis();
@@ -36,14 +39,16 @@ export default function AdminInventoryPage() {
     const q = search.trim().toLowerCase();
     return items.filter((item) => {
       const matchCat = categoryFilter === 'all' || item.category === categoryFilter;
+      const matchHub = hubFilter === 'all' || item.origin === hubFilter;
+      const matchStatus = statusFilter === 'all' || item.status === statusFilter;
       const matchSearch =
         !q ||
         item.name.toLowerCase().includes(q) ||
         item.sku.toLowerCase().includes(q) ||
         item.category.toLowerCase().includes(q);
-      return matchCat && matchSearch;
+      return matchCat && matchHub && matchStatus && matchSearch;
     });
-  }, [items, search, categoryFilter]);
+  }, [items, search, categoryFilter, hubFilter, statusFilter]);
 
   const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -71,6 +76,40 @@ export default function AdminInventoryPage() {
             Add Product
           </Link>
         </div>
+
+        {kpis?.hub_counts && kpis.hub_counts.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+            {kpis.hub_counts.map((hub) => (
+              <button
+                key={hub.hub}
+                type="button"
+                onClick={() => {
+                  setHubFilter(hub.hub);
+                  setPage(1);
+                }}
+                className={`text-left bg-white border rounded-lg p-5 transition-colors ${
+                  hubFilter === hub.hub
+                    ? 'border-[#004aad] ring-1 ring-[#004aad]/30'
+                    : 'border-[#e5eeff] hover:border-[#c3c6d5]'
+                }`}
+              >
+                <p className="text-[10px] font-bold uppercase tracking-wider text-[#737784] mb-2">
+                  <span className="mr-1.5" aria-hidden>
+                    {hub.flag}
+                  </span>
+                  {hub.label}
+                </p>
+                <p className="text-2xl font-bold" style={{ color: BLUE }}>
+                  {hub.published_count}
+                  <span className="text-sm font-semibold text-[#737784] ml-1">live</span>
+                </p>
+                <p className="text-xs text-[#737784] mt-1">
+                  {hub.product_count} total SKUs · {hub.stock_units.toLocaleString()} units in stock
+                </p>
+              </button>
+            ))}
+          </div>
+        ) : null}
 
         {kpis && (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
@@ -129,6 +168,39 @@ export default function AdminInventoryPage() {
             <div className="flex gap-2 shrink-0">
               <div className="relative">
                 <select
+                  value={hubFilter}
+                  onChange={(e) => {
+                    setHubFilter(e.target.value);
+                    setPage(1);
+                  }}
+                  className="appearance-none pl-3 pr-8 py-2 text-xs font-bold border border-[#c3c6d5] rounded-lg bg-white text-[#434653] focus:outline-none focus:border-[#004aad]"
+                >
+                  <option value="all">All hubs</option>
+                  {HUB_OPTIONS.map((h) => (
+                    <option key={h.code} value={h.code}>
+                      {h.label}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-[#737784] pointer-events-none" />
+              </div>
+              <div className="relative">
+                <select
+                  value={statusFilter}
+                  onChange={(e) => {
+                    setStatusFilter(e.target.value as 'all' | 'draft' | 'published');
+                    setPage(1);
+                  }}
+                  className="appearance-none pl-3 pr-8 py-2 text-xs font-bold border border-[#c3c6d5] rounded-lg bg-white text-[#434653] focus:outline-none focus:border-[#004aad]"
+                >
+                  <option value="all">All statuses</option>
+                  <option value="published">Published</option>
+                  <option value="draft">Draft</option>
+                </select>
+                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-[#737784] pointer-events-none" />
+              </div>
+              <div className="relative">
+                <select
                   value={categoryFilter}
                   onChange={(e) => {
                     setCategoryFilter(e.target.value);
@@ -144,15 +216,6 @@ export default function AdminInventoryPage() {
                 </select>
                 <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-[#737784] pointer-events-none" />
               </div>
-              <div className="relative">
-                <select className="appearance-none pl-3 pr-8 py-2 text-xs font-bold border border-[#c3c6d5] rounded-lg bg-white text-[#434653] focus:outline-none focus:border-[#004aad]">
-                  <option>Sort</option>
-                  <option>Name A–Z</option>
-                  <option>Stock Low–High</option>
-                  <option>Price High–Low</option>
-                </select>
-                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-[#737784] pointer-events-none" />
-              </div>
             </div>
           </div>
 
@@ -162,9 +225,11 @@ export default function AdminInventoryPage() {
                 <tr className="border-b border-[#e5eeff] bg-[#f8f9ff]">
                   {[
                     'Product Info',
+                    'Hub',
                     'Category',
+                    'Status',
                     'Stock',
-                    'Marketplace Price',
+                    'Price',
                     'Actions',
                   ].map((h) => (
                     <th
@@ -199,8 +264,27 @@ export default function AdminInventoryPage() {
                         </div>
                       </td>
                       <td className="px-5 py-4 align-top">
+                        <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#434653]">
+                          <span aria-hidden>
+                            {HUB_OPTIONS.find((h) => h.code === item.origin)?.flag ?? '🌐'}
+                          </span>
+                          {item.origin_label ?? item.origin}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 align-top">
                         <span className="inline-block text-xs font-bold px-2.5 py-1 rounded-full border border-[#c3c6d5] bg-[#f8f9ff] text-[#434653]">
                           {item.category}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 align-top">
+                        <span
+                          className={`inline-block text-[10px] font-bold uppercase px-2.5 py-1 rounded-full border ${
+                            item.status === 'published'
+                              ? 'bg-green-50 text-green-800 border-green-200'
+                              : 'bg-amber-50 text-amber-900 border-amber-200'
+                          }`}
+                        >
+                          {PRODUCT_STATUS_LABELS[item.status] ?? item.status}
                         </span>
                       </td>
                       <td className="px-5 py-4 align-top">
@@ -243,7 +327,7 @@ export default function AdminInventoryPage() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={5} className="px-5 py-12 text-center text-sm text-[#737784]">
+                    <td colSpan={7} className="px-5 py-12 text-center text-sm text-[#737784]">
                       No products match your search.
                     </td>
                   </tr>

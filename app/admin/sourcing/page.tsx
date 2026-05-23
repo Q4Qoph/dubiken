@@ -80,11 +80,11 @@ function RequestActions({ req }: { req: SourcingRequest }) {
 
 function DestinationCell({ req }: { req: SourcingRequest }) {
   return (
-    <div className="inline-flex items-center gap-2 border border-[#c3c6d5] rounded-lg px-2.5 py-2 bg-white">
+    <div className="inline-flex items-center gap-2 border border-[#c3c6d5] rounded-lg px-2.5 py-2 bg-white max-w-[200px]">
       <Globe className="w-4 h-4 text-[#737784] shrink-0" />
-      <div>
-        <p className="text-xs font-bold text-black">{req.market}</p>
-        <p className="text-[10px] text-[#737784] leading-tight">{req.destination}</p>
+      <div className="min-w-0">
+        <p className="text-xs font-bold text-black truncate">{req.destination}</p>
+        <p className="text-[10px] text-[#737784] leading-tight">Kenya</p>
       </div>
     </div>
   );
@@ -133,24 +133,6 @@ export default function AdminSourcingPage() {
             <p className="text-sm text-[#737784] mt-1">
               Manage and fulfill specific procurement needs from global clients.
             </p>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              className="flex items-center gap-2 border-2 rounded px-4 py-2 text-xs font-bold uppercase bg-white hover:bg-[#f8f9ff]"
-              style={{ borderColor: BLUE, color: BLUE }}
-            >
-              <Download className="w-4 h-4" />
-              Export CSV
-            </button>
-            <button
-              type="button"
-              className="flex items-center gap-2 px-4 py-2 rounded text-xs font-bold uppercase text-white hover:opacity-90"
-              style={{ backgroundColor: ORANGE }}
-            >
-              <Plus className="w-4 h-4" />
-              Bulk Upload
-            </button>
           </div>
         </div>
 

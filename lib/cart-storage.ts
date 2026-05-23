@@ -5,7 +5,10 @@ export interface CartItem {
   name: string;
   sku: string;
   quantity: number;
-  unitPrice: number;
+  /** USD — logged-in API cart legacy */
+  unitPrice?: number;
+  /** KES — display & guest cart */
+  unitPriceKes: number;
   origin: string;
   imageUrl: string;
 }

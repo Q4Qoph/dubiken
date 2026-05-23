@@ -3,7 +3,6 @@ import type {
   HubCode,
   SourcingShippingMethod,
   SourcingUnit,
-  SourcingUrgency,
   UpsertCategoryRequest,
   UpsertOfficialQuoteRequest,
 } from '@/lib/contracts';
@@ -25,6 +24,7 @@ import type {
   SourcingRequest,
   SourcingRequestDetail,
   UserMarketplaceOrder,
+  UserMarketplaceOrderDetail,
   UserSourcingRequestDetail,
   UserSourcingRequestItem,
 } from '@/lib/types';
@@ -68,6 +68,10 @@ export async function getShipmentByTrackingId(trackingId: string): Promise<Shipm
   return api.apiGetShipment(trackingId);
 }
 
+export async function getMyShipmentByTrackingId(trackingId: string): Promise<Shipment | null> {
+  return api.apiGetMyShipment(trackingId);
+}
+
 export async function listShipments(): Promise<Shipment[]> {
   return api.apiListShipments();
 }
@@ -79,12 +83,14 @@ export async function getProductById(id: string): Promise<Product | null> {
 
 export async function getRelatedProducts(excludeId: string, limit = 4): Promise<RelatedProduct[]> {
   const rows = await api.apiGetRelatedProducts(excludeId, limit);
-  return rows.map(({ id, name, price, origin, image_url }) => ({
+  return rows.map(({ id, name, price, price_kes, origin, image_url, stock }) => ({
     id,
     name,
     price,
+    price_kes: price_kes ?? '',
     origin,
     image_url,
+    stock: stock ?? 0,
   }));
 }
 
@@ -142,16 +148,15 @@ export type OriginMarket = HubCode;
 
 export interface CreateSourcingRequestInput {
   productName: string;
-  category: string;
-  urgency: SourcingUrgency;
   description: string;
   origin: HubCode;
-  destination: string;
+  county: string;
+  deliveryAddress: string;
   quantity: string;
   unit: string;
   targetDate: string;
   shippingMethod: SourcingShippingMethod;
-  budget?: string;
+  budget: string;
 }
 
 export async function createUserSourcingRequest(
@@ -159,11 +164,10 @@ export async function createUserSourcingRequest(
 ): Promise<UserSourcingRequestItem> {
   const body: CreateSourcingRequestBody = {
     product_name: input.productName,
-    category: input.category,
-    urgency: input.urgency,
     description: input.description,
     origin: input.origin,
-    destination: input.destination,
+    county: input.county,
+    delivery_address: input.deliveryAddress,
     quantity: input.quantity,
     unit: input.unit as CreateSourcingRequestBody['unit'],
     target_date: input.targetDate,
@@ -176,6 +180,12 @@ export async function createUserSourcingRequest(
 
 export async function getUserMarketplaceOrders(): Promise<UserMarketplaceOrder[]> {
   return api.apiGetUserMarketplaceOrders();
+}
+
+export async function getUserMarketplaceOrder(
+  id: string,
+): Promise<UserMarketplaceOrderDetail | null> {
+  return api.apiGetUserMarketplaceOrder(id);
 }
 
 export type AdminCategoryFormInput = UpsertCategoryRequest & { id?: string };
@@ -198,6 +208,7 @@ export async function getHomeFeed(): Promise<{
       origin: c.origin,
       product_count: c.product_count,
       image_url: c.image_url,
+      sample_products: c.sample_products ?? [],
     })),
     products: (res?.products ?? []).map((p) => ({
       id: p.id,
@@ -210,6 +221,8 @@ export async function getHomeFeed(): Promise<{
       price_aed: p.price_aed,
       image_url: p.image_url,
       cta: p.cta,
+      stock: p.stock ?? 0,
+      min_order: p.min_order,
     })),
   };
 }
@@ -226,6 +239,7 @@ export async function getExploreCategories(page = 1, pageSize = 12): Promise<{
       origin: c.origin,
       product_count: c.product_count,
       image_url: c.image_url,
+      sample_products: c.sample_products ?? [],
     })),
     meta: res.meta,
   };
@@ -242,10 +256,12 @@ export async function listMyShipments(): Promise<Shipment[]> {
 export async function getMarketplaceProducts(
   hub?: string,
   category?: string,
+  search?: string,
 ): Promise<MarketplaceProduct[]> {
   const query: Record<string, string | number> = { page_size: 48 };
   if (hub && hub !== 'all') query.hub = hub;
   if (category) query.category = category;
+  if (search?.trim()) query.search = search.trim();
   const res = await api.apiGetMarketplaceProducts(query);
   return (res?.data ?? []).map((p) => ({
     id: p.id,
@@ -258,6 +274,8 @@ export async function getMarketplaceProducts(
     price_aed: p.price_aed,
     image_url: p.image_url,
     cta: p.cta,
+    stock: p.stock ?? 0,
+    min_order: p.min_order,
   }));
 }
 

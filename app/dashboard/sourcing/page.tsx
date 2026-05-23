@@ -23,7 +23,7 @@ const statusDot: Record<UserSourcingRequestItem['status_variant'], string> = {
 
 export default function UserSourcingPage() {
   const { data, isLoading } = useUserSourcingDashboard();
-  const summary = data?.summary ?? { active: 0, pending_quotes: 0, procured_total: '$0' };
+  const summary = data?.summary ?? { active: 0, pending_quotes: 0, procured_total: 'KSh 0' };
   const requests = data?.requests ?? [];
 
   return (
@@ -47,7 +47,7 @@ export default function UserSourcingPage() {
         </Link>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
         <div className="bg-white border border-[#e5eeff] rounded-lg p-5">
           <div className="flex justify-between items-start mb-2">
             <p className="text-[10px] font-bold uppercase text-[#737784]">Active Requests</p>
@@ -74,18 +74,6 @@ export default function UserSourcingPage() {
           <p className="text-3xl font-bold" style={{ color: BLUE_DARK }}>
             {summary.procured_total}
           </p>
-        </div>
-        <div
-          className="rounded-lg p-5 text-white"
-          style={{ backgroundColor: BLUE_DARK }}
-        >
-          <p className="text-[10px] font-bold uppercase opacity-90 mb-2">Market Insight</p>
-          <p className="text-xs leading-relaxed opacity-95">
-            Dubai-to-Nairobi lane volume up 18% this quarter.
-          </p>
-          <button type="button" className="text-xs font-bold mt-3 underline hover:opacity-80">
-            View Trends →
-          </button>
         </div>
       </div>
 

@@ -116,6 +116,14 @@ export type TransportType = (typeof TRANSPORT_TYPES)[number];
 export const CATEGORY_STATUSES = ['draft', 'published'] as const;
 export type CategoryStatus = (typeof CATEGORY_STATUSES)[number];
 
+export const PRODUCT_STATUSES = ['draft', 'published'] as const;
+export type ProductStatus = (typeof PRODUCT_STATUSES)[number];
+
+export const PRODUCT_STATUS_LABELS: Record<ProductStatus, string> = {
+  draft: 'Draft',
+  published: 'Published',
+};
+
 export const TREND_VARIANTS = ['up', 'stable', 'down'] as const;
 export type TrendVariant = (typeof TREND_VARIANTS)[number];
 
@@ -135,13 +143,60 @@ export const CHECKOUT_STEP_LABELS: Record<CheckoutStep, string> = {
   3: 'Review',
 };
 
+/** All 47 Kenyan counties — checkout region & sourcing delivery. */
 export const KENYA_REGIONS = [
-  'Nairobi County',
-  'Mombasa County',
+  'Baringo County',
+  'Bomet County',
+  'Bungoma County',
+  'Busia County',
+  'Elgeyo-Marakwet County',
+  'Embu County',
+  'Garissa County',
+  'Homa Bay County',
+  'Isiolo County',
+  'Kajiado County',
+  'Kakamega County',
+  'Kericho County',
+  'Kiambu County',
+  'Kilifi County',
+  'Kirinyaga County',
+  'Kisii County',
   'Kisumu County',
+  'Kitui County',
+  'Kwale County',
+  'Laikipia County',
+  'Lamu County',
+  'Machakos County',
+  'Makueni County',
+  'Mandera County',
+  'Marsabit County',
+  'Meru County',
+  'Migori County',
+  'Mombasa County',
+  'Murang\'a County',
+  'Nairobi County',
   'Nakuru County',
+  'Nandi County',
+  'Narok County',
+  'Nyamira County',
+  'Nyandarua County',
+  'Nyeri County',
+  'Samburu County',
+  'Siaya County',
+  'Taita-Taveta County',
+  'Tana River County',
+  'Tharaka-Nithi County',
+  'Trans Nzoia County',
+  'Turkana County',
+  'Uasin Gishu County',
+  'Vihiga County',
+  'Wajir County',
+  'West Pokot County',
 ] as const;
 export type KenyaRegion = (typeof KENYA_REGIONS)[number];
+
+/** @deprecated use KENYA_REGIONS */
+export const KENYAN_COUNTIES = KENYA_REGIONS;
 
 // ——— Attachments ———
 
@@ -172,6 +227,21 @@ export const LOGISTICS_PIPELINE_STATUSES = [
 export type LogisticsPipelineStatus = (typeof LOGISTICS_PIPELINE_STATUSES)[number];
 
 // ——— User marketplace orders ———
+
+export const MARKETPLACE_ORDER_STATUSES = [
+  'PROCESSING',
+  'IN TRANSIT',
+  'DELIVERED',
+  'CANCELLED',
+] as const;
+export type MarketplaceOrderStatus = (typeof MARKETPLACE_ORDER_STATUSES)[number];
+
+export const MARKETPLACE_ORDER_STATUS_LABELS: Record<MarketplaceOrderStatus, string> = {
+  PROCESSING: 'Processing',
+  'IN TRANSIT': 'In transit',
+  DELIVERED: 'Delivered',
+  CANCELLED: 'Cancelled',
+};
 
 export const MARKETPLACE_ORDER_STATUS_ICONS = [
   'transit',

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   ShoppingBag,
@@ -21,7 +21,8 @@ import {
   useUserSourcingDashboard,
 } from '@/lib/api/hooks';
 import { useCart } from '@/hooks/use-cart';
-import { parseKsh } from '@/lib/currency';
+import { parseKsh, formatKshLabel, formatKshLabelFromKes } from '@/lib/currency';
+import { normalizeTrackingId } from '@/lib/tracking-id';
 import type { UserMarketplaceOrder } from '@/lib/types';
 
 const BLUE = '#004aad';
@@ -51,7 +52,7 @@ function ProgressBar({ step }: { step: number }) {
 function RecentOrderRow({ order }: { order: UserMarketplaceOrder }) {
   return (
     <Link
-      href="/dashboard/orders"
+      href={`/dashboard/orders/${order.id}#tracking`}
       className="flex items-center gap-3 p-3 rounded-lg bg-[#f8f9ff] border border-[#e5eeff] hover:border-[#dce9ff] transition-colors"
     >
       <div className="relative w-14 h-14 shrink-0 rounded-lg overflow-hidden bg-white border border-[#e5eeff]">
@@ -71,7 +72,7 @@ function RecentOrderRow({ order }: { order: UserMarketplaceOrder }) {
       </div>
       <div className="text-right shrink-0">
         <p className="text-sm font-bold" style={{ color: BLUE_DARK }}>
-          {order.price_kes}
+          {formatKshLabel(order.price_kes)}
         </p>
         <p className="text-[10px] text-[#737784] mt-0.5">
           {order.date_label}: {order.date_value}
@@ -94,15 +95,6 @@ export default function DashboardPage() {
   const summary = sourcingData?.summary;
   const sourcingRequests = (sourcingData?.requests ?? []).slice(0, 3);
 
-  useEffect(() => {
-    if (activeTracking) return;
-    const fromOrder = orders.find((o) => o.tracking_id)?.tracking_id;
-    if (fromOrder) {
-      setActiveTracking(fromOrder);
-      setTrackingInput(fromOrder);
-    }
-  }, [orders, activeTracking]);
-
   const stats = useMemo(() => {
     const activeOrders = orders.filter((o) => {
       const s = o.status.toUpperCase();
@@ -122,7 +114,17 @@ export default function DashboardPage() {
 
   const recentOrders = orders.slice(0, 4);
   const milestones = shipment?.milestones ?? [];
+  const matchedOrderForTracking = activeTracking
+    ? orders.find(
+        (o) => (o.tracking_id ?? o.order_number) === activeTracking,
+      )
+    : undefined;
   const firstName = displayName.split(' ')[0] || 'there';
+
+  function submitTracking(raw: string) {
+    const id = normalizeTrackingId(raw);
+    if (id) setActiveTracking(id);
+  }
 
   return (
     <div className="min-h-full p-6 lg:p-8">
@@ -188,9 +190,9 @@ export default function DashboardPage() {
             <Package className="w-4 h-4" style={{ color: ORANGE }} />
           </div>
           <p className="text-2xl font-bold" style={{ color: BLUE_DARK }}>
-            {ordersLoading ? '…' : stats.totalSpend.toLocaleString('en-KE')}
+            {ordersLoading ? '…' : formatKshLabelFromKes(stats.totalSpend)}
           </p>
-          <p className="text-xs text-[#737784] mt-1">All marketplace orders</p>
+          <p className="text-xs text-[#737784] mt-1">All orders</p>
         </div>
       </div>
 
@@ -280,17 +282,15 @@ export default function DashboardPage() {
                   value={trackingInput}
                   onChange={(e) => setTrackingInput(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && trackingInput.trim()) {
-                      setActiveTracking(trackingInput.trim());
-                    }
+                    if (e.key === 'Enter') submitTracking(trackingInput);
                   }}
-                  placeholder="Tracking ID"
+                  placeholder="e.g. DBK-8500711"
                   className="w-full pl-9 pr-3 py-2 text-sm border border-[#c3c6d5] rounded-lg bg-[#f8f9ff] focus:outline-none focus:border-[#004aad]"
                 />
               </div>
               <button
                 type="button"
-                onClick={() => trackingInput.trim() && setActiveTracking(trackingInput.trim())}
+                onClick={() => submitTracking(trackingInput)}
                 className="px-3 py-2 rounded-lg text-sm font-bold text-white shrink-0"
                 style={{ backgroundColor: BLUE_DARK }}
               >
@@ -300,16 +300,26 @@ export default function DashboardPage() {
 
             {activeTracking ? (
               <p className="text-xs font-mono font-bold mb-3" style={{ color: BLUE }}>
-                {shipment?.tracking_id || activeTracking}
+                #{activeTracking}
               </p>
+            ) : null}
+
+            {matchedOrderForTracking ? (
+              <Link
+                href={`/dashboard/orders/${matchedOrderForTracking.id}#tracking`}
+                className="text-xs font-bold mb-3 inline-block hover:underline"
+                style={{ color: BLUE }}
+              >
+                View full order details →
+              </Link>
             ) : null}
 
             <div className="space-y-4">
               {milestones.length === 0 ? (
                 <p className="text-sm text-[#737784]">
                   {activeTracking
-                    ? 'No tracking updates for this ID yet.'
-                    : 'Enter a tracking ID from your order confirmation.'}
+                    ? 'Tracking is being set up. Open your order for full details.'
+                    : 'Enter your tracking ID and press Track, or open an order under My orders.'}
                 </p>
               ) : (
                 milestones.map((m, i) => (
@@ -328,7 +338,8 @@ export default function DashboardPage() {
                         {m.label}
                       </p>
                       <p className="text-xs text-[#737784]">
-                        {m.detail} · {m.date}
+                        {m.detail}
+                        {m.date ? ` · ${m.date}` : ''}
                       </p>
                     </div>
                   </div>

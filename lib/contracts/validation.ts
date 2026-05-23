@@ -6,7 +6,7 @@ export const VALIDATION = {
   auth: {
     email: { required: true, format: 'email', maxLength: 255 },
     password: { required: true, minLength: 8, maxLength: 128 },
-    company_name: { required: true, minLength: 2, maxLength: 200 },
+    name: { required: true, minLength: 2, maxLength: 120 },
   },
   userSourcingCreate: {
     product_name: { required: true, minLength: 1, maxLength: 200 },
@@ -36,7 +36,7 @@ export const VALIDATION = {
     sku: { required: true, minLength: 1, maxLength: 64 },
     category: { required: true, enum: 'INVENTORY_CATEGORY_OPTIONS' },
     description: { required: true, minLength: 1, maxLength: 5000 },
-    price_usd: { required: true, min: 0.01 },
+    price_kes: { required: true, min: 1, integer: true },
     stock: { required: true, min: 1, integer: true },
     main_image: { required: true },
     other_images: { required: false, maxItems: 8 },

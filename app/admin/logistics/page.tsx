@@ -1,8 +1,10 @@
 'use client';
 
 import { Filter, Plus, TrendingUp, ArrowRight } from 'lucide-react';
+import { useMounted } from '@/hooks/use-mounted';
 import AdminPageFooter from '@/components/admin/AdminPageFooter';
 import { useAdminAnalytics, useShipments } from '@/lib/api/hooks';
+import { formatKshLabelFromKes } from '@/lib/currency';
 import type { Shipment } from '@/lib/types';
 
 const BLUE = '#004aad';
@@ -53,8 +55,10 @@ function statusBucket(status: string): 'port' | 'transit' | 'customs' | 'other' 
 }
 
 export default function AdminLogisticsPage() {
+  const mounted = useMounted();
   const { data: shipmentRows = [], isLoading } = useShipments();
   const { dashboard } = useAdminAnalytics();
+  const kpiPending = !mounted || isLoading;
   const shipments = shipmentRows.map(mapShipmentRow);
   const buckets = shipmentRows.reduce(
     (acc, s) => {
@@ -167,12 +171,12 @@ export default function AdminLogisticsPage() {
           <div className="space-y-4">
             <div className="bg-white border border-[#e5eeff] rounded-lg p-5">
               <p className="text-[10px] font-bold uppercase tracking-wider text-[#737784] mb-1">
-                In Transit Value
+                Marketplace revenue (28d)
               </p>
               <p className="text-3xl font-bold" style={{ color: BLUE_DARK }}>
                 {dashboard?.kpis
-                  ? `$${dashboard.kpis.global_sales_usd.toLocaleString()}`
-                  : isLoading
+                  ? formatKshLabelFromKes(dashboard.kpis.global_sales_usd)
+                  : kpiPending
                     ? '…'
                     : '—'}
               </p>
@@ -191,7 +195,7 @@ export default function AdminLogisticsPage() {
                 Active Shipments
               </p>
               <p className="text-3xl font-bold" style={{ color: ORANGE }}>
-                {isLoading ? '…' : shipments.length}
+                {kpiPending ? '…' : shipments.length}
               </p>
               <div className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-[#e5eeff]">
                 {[

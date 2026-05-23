@@ -7,18 +7,12 @@ import {
   LayoutDashboard,
   Package,
   ShoppingCart,
-  Truck,
   FileText,
   Tags,
-  Settings,
-  HelpCircle,
   Plus,
-  Search,
-  Shield,
-  ShoppingBag,
-  User,
 } from 'lucide-react';
 import { SidebarLogoutLink } from '@/components/dashboard/sidebar-logout-link';
+import UserAccountMenu from '@/components/UserAccountMenu';
 
 const navItems = [
   { label: 'Dashboard', href: '/admin', icon: LayoutDashboard },
@@ -26,12 +20,12 @@ const navItems = [
   { label: 'Inventory', href: '/admin/inventory', icon: Package },
   { label: 'Categories', href: '/admin/categories', icon: Tags },
   { label: 'Orders', href: '/admin/orders', icon: ShoppingCart },
-  { label: 'Logistics', href: '/admin/logistics', icon: Truck },
+  // { label: 'Logistics', href: '/admin/logistics', icon: Truck },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { displayName, company, initials, role } = useCurrentUser();
+  const { displayName, company, initials, role, mounted, isLoading } = useCurrentUser();
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f0f4f9]">
@@ -39,29 +33,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <Link href="/admin" className="text-[#1a2d5a] font-bold text-lg tracking-tight w-48 shrink-0">
           Dubiken
         </Link>
-        <span className="hidden sm:inline text-xs font-semibold text-[#718096] uppercase tracking-wider">
-          Admin
-        </span>
+        
         <div className="flex-1 max-w-sm ml-auto">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#a0aec0]" />
-            <input
-              type="text"
-              placeholder="Search operations..."
-              className="w-full pl-9 pr-4 py-2 text-sm border border-[#e2e8f0] rounded-lg bg-[#f7f9fc] focus:outline-none focus:ring-2 focus:ring-[#1a3a7a]/20 focus:border-[#1a3a7a]"
-            />
-          </div>
+         
         </div>
         <div className="flex items-center gap-2 ml-4">
-          <Link href="/dashboard" className="text-xs font-medium text-[#1a3a7a] hover:underline hidden sm:inline">
-            User view
-          </Link>
-          <button className="p-2 rounded-lg hover:bg-[#f0f4f9] text-[#4a5568] relative">
-            <ShoppingBag className="w-5 h-5" />
-          </button>
-          <button className="p-2 rounded-lg hover:bg-[#f0f4f9] text-[#4a5568]">
-            <User className="w-5 h-5" />
-          </button>
+          <UserAccountMenu />
         </div>
       </header>
 
@@ -72,15 +49,27 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         >
           <div className="p-4 border-b border-[#e2e8f0] shrink-0">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-[#1a2d5a] flex items-center justify-center text-white shrink-0 text-xs font-bold">
-                {initials}
-              </div>
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-[#1a2d5a] truncate">{displayName}</p>
-                <p className="text-xs text-[#718096] truncate">
-                  {role === 'admin' ? company || 'Admin' : 'Operations'}
-                </p>
-              </div>
+              {!mounted || isLoading ? (
+                <>
+                  <div className="w-9 h-9 rounded-lg bg-[#dce9ff] animate-pulse shrink-0" aria-hidden />
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                    <div className="h-3.5 w-24 bg-[#dce9ff] rounded animate-pulse" />
+                    <div className="h-3 w-16 bg-[#dce9ff] rounded animate-pulse" />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="w-9 h-9 rounded-lg bg-[#1a2d5a] flex items-center justify-center text-white shrink-0 text-xs font-bold">
+                    {initials}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-[#1a2d5a] truncate">{displayName}</p>
+                    <p className="text-xs text-[#718096] truncate">
+                      {role === 'admin' ? company || 'Admin' : 'Operations'}
+                    </p>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
@@ -119,18 +108,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
 
           <div className="shrink-0 py-2 px-2 border-t border-[#e2e8f0] space-y-0.5">
-            <button
-              type="button"
-              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-[#718096] hover:bg-[#f0f4f9] hover:text-[#1a2d5a] transition-colors"
-            >
-              <Settings className="w-4 h-4 shrink-0" /> Settings
-            </button>
-            <button
-              type="button"
-              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-[#718096] hover:bg-[#f0f4f9] hover:text-[#1a2d5a] transition-colors"
-            >
-              <HelpCircle className="w-4 h-4 shrink-0" /> Support
-            </button>
             <SidebarLogoutLink />
           </div>
         </aside>

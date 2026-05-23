@@ -3,9 +3,9 @@
 import { useEffect, useState } from 'react';
 import type { ExploreCategory } from '@/lib/types';
 import Link from 'next/link';
-import { Globe, ShieldCheck } from 'lucide-react';
 import SiteHeader from '@/components/SiteHeader';
 import SiteFooter from '@/components/SiteFooter';
+import PageLoader from '@/components/PageLoader';
 import { useExploreCategories } from '@/lib/api/hooks';
 
 const BLUE = '#004aad';
@@ -31,6 +31,11 @@ export default function ExploreCategoriesPage() {
   const total = meta?.total ?? categories.length;
   const shown = categories.length;
   const hasMore = shown < total;
+  const showLoader = isLoading && page === 1 && categories.length === 0;
+
+  if (showLoader) {
+    return <PageLoader />;
+  }
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
@@ -41,46 +46,90 @@ export default function ExploreCategoriesPage() {
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
             <div>
               <h1 className="text-3xl font-bold" style={{ color: BLUE_DARK }}>
-                Explore Categories
+                Categories
               </h1>
               <p className="text-sm text-[#737784] mt-2">
-                Access global trade hubs through our curated sourcing network.
+                Browse products by category from the marketplace catalog.
               </p>
             </div>
           </div>
 
-          {isLoading && categories.length === 0 ? (
-            <p className="text-sm text-[#737784]">Loading categories…</p>
-          ) : null}
-
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-            {categories.map((cat) => (
-              <Link
-                key={cat.id}
-                href={`/marketplace?category=${encodeURIComponent(cat.name)}`}
-                className="group relative rounded-lg overflow-hidden min-h-[200px] border border-[#e5eeff]"
-              >
-                {cat.image_url ? (
-                  <img
-                    src={cat.image_url}
-                    alt={cat.name}
-                    className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                  />
-                ) : (
-                  <div className="absolute inset-0 bg-[#dce9ff]" />
-                )}
-                <div className="absolute inset-0 bg-black/35" />
-                <span className="absolute top-3 right-3 text-[10px] font-bold px-2 py-0.5 bg-white border border-[#c3c6d5] rounded">
-                  {cat.origin}
-                </span>
-                <div className="absolute bottom-0 left-0 p-4 text-white">
-                  <h2 className="text-lg font-bold">{cat.name}</h2>
-                  <p className="text-xs opacity-90">
-                    {cat.product_count.toLocaleString()} Products
-                  </p>
+            {categories.map((cat) => {
+              const samples = cat.sample_products ?? [];
+              const categoryHref = `/marketplace?category=${encodeURIComponent(cat.name)}`;
+
+              return (
+                <div
+                  key={cat.id}
+                  className="bg-white border border-[#e5eeff] rounded-lg overflow-hidden flex flex-col"
+                >
+                  <Link href={categoryHref} className="group relative min-h-[160px] block">
+                    {cat.image_url ? (
+                      <img
+                        src={cat.image_url}
+                        alt={cat.name}
+                        className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                    ) : (
+                      <div className="absolute inset-0 bg-[#dce9ff]" />
+                    )}
+                    <div className="absolute inset-0 bg-black/35" />
+                    <div className="absolute bottom-0 left-0 p-4 text-white">
+                      <h2 className="text-lg font-bold">{cat.name}</h2>
+                      <p className="text-xs opacity-90">
+                        {cat.product_count.toLocaleString()} product
+                        {cat.product_count === 1 ? '' : 's'}
+                      </p>
+                    </div>
+                  </Link>
+
+                  {samples.length > 0 ? (
+                    <div className="p-3 border-t border-[#e5eeff]">
+                      <div className="grid grid-cols-4 gap-2">
+                        {samples.slice(0, 4).map((p) => (
+                          <Link
+                            key={p.id}
+                            href={`/product/${p.id}`}
+                            className="block rounded border border-[#e5eeff] overflow-hidden bg-[#f8f9ff] hover:border-[#004aad]"
+                            title={p.name}
+                          >
+                            <div className="aspect-square flex items-center justify-center p-1">
+                              {p.image_url ? (
+                                <img
+                                  src={p.image_url}
+                                  alt=""
+                                  className="max-h-full max-w-full object-contain"
+                                />
+                              ) : (
+                                <div className="w-full h-full bg-[#dce9ff]" />
+                              )}
+                            </div>
+                          </Link>
+                        ))}
+                      </div>
+                      <Link
+                        href={categoryHref}
+                        className="mt-2 block text-center text-xs font-bold hover:underline"
+                        style={{ color: BLUE }}
+                      >
+                        View all in {cat.name} →
+                      </Link>
+                    </div>
+                  ) : (
+                    <div className="p-3 border-t border-[#e5eeff] text-center">
+                      <Link
+                        href={categoryHref}
+                        className="text-xs font-bold hover:underline"
+                        style={{ color: BLUE }}
+                      >
+                        Browse category →
+                      </Link>
+                    </div>
+                  )}
                 </div>
-              </Link>
-            ))}
+              );
+            })}
           </div>
 
           {!isLoading && categories.length === 0 ? (
@@ -98,11 +147,11 @@ export default function ExploreCategoriesPage() {
                 className="w-full max-w-md py-3.5 rounded-lg text-sm font-bold text-white mb-3 disabled:opacity-60"
                 style={{ backgroundColor: BLUE_DARK }}
               >
-                {isFetching ? 'Loading…' : 'Load More Categories'}
+                {isFetching ? 'Loading…' : 'Load more categories'}
               </button>
             ) : null}
             <p className="text-xs text-[#737784] font-medium">
-              SHOWING {shown} OF {total} CATEGORIES
+              Showing {shown} of {total} categories
             </p>
           </div>
         </div>

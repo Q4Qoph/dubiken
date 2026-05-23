@@ -16,14 +16,10 @@ import { FileUploadField } from '@/components/sourcing/file-upload-field';
 import { useCreateSourcingRequestMutation } from '@/lib/api/hooks';
 import {
   HUB_OPTIONS,
-  SOURCING_SHIPPING_METHODS,
+  KENYA_REGIONS,
   SOURCING_UNITS,
-  SOURCING_URGENCIES,
-  USER_SOURCING_CATEGORY_OPTIONS,
-  USER_SOURCING_DESTINATIONS,
   type HubCode,
   type SourcingShippingMethod,
-  type SourcingUrgency,
 } from '@/lib/contracts';
 
 const BLUE = '#004aad';
@@ -35,18 +31,16 @@ const STEPS = [
   { id: 3, label: 'REVIEW', sub: 'Submit for Verification' },
 ] as const;
 
-const CATEGORIES = [...USER_SOURCING_CATEGORY_OPTIONS];
+const COUNTIES = [...KENYA_REGIONS];
 const ORIGINS = HUB_OPTIONS;
-const DESTINATIONS = [...USER_SOURCING_DESTINATIONS];
 const UNITS = [...SOURCING_UNITS];
 
 type FormState = {
   productName: string;
-  category: string;
-  urgency: 'standard' | 'express';
   description: string;
   origin: HubCode;
-  destination: string;
+  county: string;
+  deliveryAddress: string;
   quantity: string;
   unit: string;
   targetDate: string;
@@ -57,11 +51,10 @@ type FormState = {
 
 const initialForm: FormState = {
   productName: '',
-  category: CATEGORIES[0],
-  urgency: 'standard',
   description: '',
   origin: 'CN',
-  destination: DESTINATIONS[0],
+  county: 'Nairobi County',
+  deliveryAddress: '',
   quantity: '',
   unit: 'units',
   targetDate: '',
@@ -87,10 +80,19 @@ function FormSection({
   );
 }
 
-function FieldLabel({ children, htmlFor }: { children: React.ReactNode; htmlFor?: string }) {
+function FieldLabel({
+  children,
+  htmlFor,
+  required,
+}: {
+  children: React.ReactNode;
+  htmlFor?: string;
+  required?: boolean;
+}) {
   return (
     <label htmlFor={htmlFor} className="block text-xs font-bold text-[#434653] mb-1.5">
       {children}
+      {required ? <span className="text-red-600"> *</span> : null}
     </label>
   );
 }
@@ -139,6 +141,12 @@ export default function NewSourcingRequestPage() {
       if (!form.targetDate) {
         nextErrors.targetDate = 'Select a target delivery date';
       }
+      if (!form.deliveryAddress.trim()) {
+        nextErrors.deliveryAddress = 'Enter your delivery address';
+      }
+      if (!form.budget.trim()) {
+        nextErrors.budget = 'Enter your budget';
+      }
     }
 
     if (targetStep === 3) {
@@ -170,16 +178,15 @@ export default function NewSourcingRequestPage() {
     try {
       const created = await createRequest.mutateAsync({
         productName: form.productName.trim(),
-        category: form.category,
-        urgency: form.urgency,
         description: form.description.trim(),
         origin: form.origin,
-        destination: form.destination,
+        county: form.county,
+        deliveryAddress: form.deliveryAddress.trim(),
         quantity: form.quantity.trim(),
         unit: form.unit,
         targetDate: form.targetDate,
         shippingMethod: form.shippingMethod,
-        budget: form.budget.trim() || undefined,
+        budget: form.budget.trim(),
       });
 
       toast.success('Sourcing request submitted', {
@@ -288,7 +295,9 @@ export default function NewSourcingRequestPage() {
                 <>
                   <FormSection title="Product details">
                     <div>
-                      <FieldLabel htmlFor="productName">Product name / title</FieldLabel>
+                      <FieldLabel htmlFor="productName" required>
+                        Product name / title
+                      </FieldLabel>
                       <input
                         id="productName"
                         value={form.productName}
@@ -300,56 +309,13 @@ export default function NewSourcingRequestPage() {
                         <p className="text-xs text-red-600 mt-1">{errors.productName}</p>
                       )}
                     </div>
-                    <div>
-                      <FieldLabel htmlFor="category">Product category</FieldLabel>
-                      <div className="relative">
-                        <select
-                          id="category"
-                          value={form.category}
-                          onChange={(e) => patch({ category: e.target.value })}
-                          className={`${inputClass()} appearance-none`}
-                        >
-                          {CATEGORIES.map((cat) => (
-                            <option key={cat} value={cat}>
-                              {cat}
-                            </option>
-                          ))}
-                        </select>
-                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#737784] pointer-events-none" />
-                      </div>
-                    </div>
-                  </FormSection>
-
-                  <FormSection title="Request urgency">
-                    <div className="flex gap-3">
-                      <button
-                        type="button"
-                        onClick={() => patch({ urgency: 'standard' })}
-                        className={`flex-1 py-2.5 rounded-lg text-sm font-bold border-2 ${
-                          form.urgency === 'standard'
-                            ? 'bg-white border-[#004aad] text-black'
-                            : 'bg-white/70 border-transparent text-[#737784]'
-                        }`}
-                      >
-                        Standard
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => patch({ urgency: 'express' })}
-                        className={`flex-1 py-2.5 rounded-lg text-sm font-bold border-2 ${
-                          form.urgency === 'express'
-                            ? 'bg-white border-red-400 text-red-600'
-                            : 'bg-white/70 border-transparent text-[#737784]'
-                        }`}
-                      >
-                        Express
-                      </button>
-                    </div>
                   </FormSection>
 
                   <FormSection title="Specifications">
                     <div>
-                      <FieldLabel htmlFor="description">Detailed description</FieldLabel>
+                      <FieldLabel htmlFor="description" required>
+                        Detailed description
+                      </FieldLabel>
                       <textarea
                         id="description"
                         value={form.description}
@@ -397,28 +363,51 @@ export default function NewSourcingRequestPage() {
                     </div>
                   </FormSection>
 
-                  <FormSection title="Delivery & quantity">
+                  <FormSection title="Delivery in Kenya">
                     <div>
-                      <FieldLabel htmlFor="destination">Destination</FieldLabel>
+                      <FieldLabel htmlFor="county" required>
+                        County
+                      </FieldLabel>
                       <div className="relative">
                         <select
-                          id="destination"
-                          value={form.destination}
-                          onChange={(e) => patch({ destination: e.target.value })}
+                          id="county"
+                          value={form.county}
+                          onChange={(e) => patch({ county: e.target.value })}
                           className={`${inputClass()} appearance-none`}
                         >
-                          {DESTINATIONS.map((dest) => (
-                            <option key={dest} value={dest}>
-                              {dest}
+                          {COUNTIES.map((county) => (
+                            <option key={county} value={county}>
+                              {county}
                             </option>
                           ))}
                         </select>
                         <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#737784] pointer-events-none" />
                       </div>
                     </div>
+                    <div>
+                      <FieldLabel htmlFor="deliveryAddress" required>
+                        Delivery address
+                      </FieldLabel>
+                      <textarea
+                        id="deliveryAddress"
+                        value={form.deliveryAddress}
+                        onChange={(e) => patch({ deliveryAddress: e.target.value })}
+                        rows={3}
+                        placeholder="Street, building, town, landmarks…"
+                        className={`${inputClass(Boolean(errors.deliveryAddress))} resize-y`}
+                      />
+                      {errors.deliveryAddress && (
+                        <p className="text-xs text-red-600 mt-1">{errors.deliveryAddress}</p>
+                      )}
+                    </div>
+                  </FormSection>
+
+                  <FormSection title="Quantity & timing">
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <FieldLabel htmlFor="quantity">Quantity</FieldLabel>
+                        <FieldLabel htmlFor="quantity" required>
+                          Quantity
+                        </FieldLabel>
                         <input
                           id="quantity"
                           type="number"
@@ -452,7 +441,9 @@ export default function NewSourcingRequestPage() {
                       </div>
                     </div>
                     <div>
-                      <FieldLabel htmlFor="targetDate">Target delivery date</FieldLabel>
+                      <FieldLabel htmlFor="targetDate" required>
+                        Target delivery date
+                      </FieldLabel>
                       <input
                         id="targetDate"
                         type="date"
@@ -467,7 +458,7 @@ export default function NewSourcingRequestPage() {
                     </div>
                   </FormSection>
 
-                  <FormSection title="Shipping preference">
+                  <FormSection title="Shipping & budget">
                     <div className="flex flex-col sm:flex-row gap-3">
                       {(
                         [
@@ -492,14 +483,19 @@ export default function NewSourcingRequestPage() {
                       ))}
                     </div>
                     <div>
-                      <FieldLabel htmlFor="budget">Budget range (optional)</FieldLabel>
+                      <FieldLabel htmlFor="budget" required>
+                        Budget (KSh)
+                      </FieldLabel>
                       <input
                         id="budget"
                         value={form.budget}
                         onChange={(e) => patch({ budget: e.target.value })}
-                        placeholder="e.g. $10,000 – $15,000"
-                        className={inputClass()}
+                        placeholder="e.g. KSh 500,000 – KSh 750,000"
+                        className={inputClass(Boolean(errors.budget))}
                       />
+                      {errors.budget && (
+                        <p className="text-xs text-red-600 mt-1">{errors.budget}</p>
+                      )}
                     </div>
                   </FormSection>
                 </>
@@ -514,17 +510,15 @@ export default function NewSourcingRequestPage() {
                         <dd className="font-bold text-black text-right">{form.productName}</dd>
                       </div>
                       <div className="flex justify-between gap-4 border-b border-[#e5eeff] pb-2">
-                        <dt className="text-[#737784] font-medium">Category</dt>
-                        <dd className="font-bold text-black text-right">{form.category}</dd>
-                      </div>
-                      <div className="flex justify-between gap-4 border-b border-[#e5eeff] pb-2">
-                        <dt className="text-[#737784] font-medium">Urgency</dt>
-                        <dd className="font-bold text-black text-right capitalize">{form.urgency}</dd>
-                      </div>
-                      <div className="flex justify-between gap-4 border-b border-[#e5eeff] pb-2">
                         <dt className="text-[#737784] font-medium">Route</dt>
                         <dd className="font-bold text-black text-right">
-                          {originLabel} → {form.destination}
+                          {originLabel} → {form.county}
+                        </dd>
+                      </div>
+                      <div className="flex justify-between gap-4 border-b border-[#e5eeff] pb-2">
+                        <dt className="text-[#737784] font-medium">Delivery address</dt>
+                        <dd className="font-bold text-black text-right max-w-[55%]">
+                          {form.deliveryAddress}
                         </dd>
                       </div>
                       <div className="flex justify-between gap-4 border-b border-[#e5eeff] pb-2">
@@ -543,12 +537,10 @@ export default function NewSourcingRequestPage() {
                           {form.shippingMethod.replace('_', ' ')}
                         </dd>
                       </div>
-                      {form.budget && (
-                        <div className="flex justify-between gap-4 border-b border-[#e5eeff] pb-2">
-                          <dt className="text-[#737784] font-medium">Budget</dt>
-                          <dd className="font-bold text-black text-right">{form.budget}</dd>
-                        </div>
-                      )}
+                      <div className="flex justify-between gap-4 border-b border-[#e5eeff] pb-2">
+                        <dt className="text-[#737784] font-medium">Budget</dt>
+                        <dd className="font-bold text-black text-right">{form.budget}</dd>
+                      </div>
                       <div className="flex justify-between gap-4">
                         <dt className="text-[#737784] font-medium">Attachments</dt>
                         <dd className="font-bold text-black text-right">

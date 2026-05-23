@@ -93,6 +93,17 @@ export default function UserSourcingDetailPage() {
             {detail.budget_total}
           </p>
           <p className="text-xs text-[#737784] mt-1">{detail.budget_subtitle}</p>
+          {detail.delivery_county || detail.delivery_address ? (
+            <div className="mt-4 pt-4 border-t border-[#e5eeff] text-sm">
+              <p className="text-[10px] font-bold uppercase text-[#737784] mb-1">Delivery</p>
+              {detail.delivery_county ? (
+                <p className="font-bold text-black">{detail.delivery_county}</p>
+              ) : null}
+              {detail.delivery_address ? (
+                <p className="text-[#434653] mt-1 leading-relaxed">{detail.delivery_address}</p>
+              ) : null}
+            </div>
+          ) : null}
           <div className="flex flex-wrap gap-2 mt-4">
             {detail.regional_targets.map((t) => (
               <span

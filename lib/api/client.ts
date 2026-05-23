@@ -1,3 +1,4 @@
+import { clearAuthSessionOnUnauthorized } from '@/lib/auth-session';
 import { API_BASE_URL, API_TIMEOUT_MS } from './config';
 import type { ApiErrorBody } from '@/lib/contracts';
 
@@ -30,9 +31,21 @@ export interface RequestOptions {
   headers?: Record<string, string>;
 }
 
-function buildUrl(path: string, query?: RequestOptions['query']): string {
+function apiOriginForRelativeBase(): string {
+  if (typeof window !== 'undefined') return window.location.origin;
+  const site = process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/$/, '');
+  if (site) return site;
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  return 'http://localhost:3000';
+}
+
+/** Builds a fetch URL; supports relative bases like `/api/v1` (dev proxy). */
+export function buildApiUrl(path: string, query?: RequestOptions['query']): string {
   const base = API_BASE_URL.replace(/\/$/, '');
-  const url = new URL(`${base}${path.startsWith('/') ? path : `/${path}`}`);
+  const pathname = `${base}${path.startsWith('/') ? path : `/${path}`}`;
+  const url = /^https?:\/\//i.test(base)
+    ? new URL(pathname)
+    : new URL(pathname, apiOriginForRelativeBase());
   if (query) {
     Object.entries(query).forEach(([key, value]) => {
       if (value !== undefined && value !== '') {
@@ -51,14 +64,17 @@ export async function apiRequest<T>(
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
 
+  const url = buildApiUrl(path, query);
+  const bearerToken = token ?? getAccessToken();
+
   try {
-    const res = await fetch(buildUrl(path, query), {
+    const res = await fetch(url, {
       method,
       signal: controller.signal,
       headers: {
         Accept: 'application/json',
         ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(bearerToken ? { Authorization: `Bearer ${bearerToken}` } : {}),
         ...headers,
       },
       body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -72,6 +88,9 @@ export async function apiRequest<T>(
     const json = text ? (JSON.parse(text) as unknown) : null;
 
     if (!res.ok) {
+      if (res.status === 401) {
+        clearAuthSessionOnUnauthorized(path, !!bearerToken);
+      }
       const errBody = json as ApiErrorBody | null;
       if (errBody?.error) {
         throw ApiError.fromResponse(res.status, errBody);
@@ -80,6 +99,23 @@ export async function apiRequest<T>(
     }
 
     return json as T;
+  } catch (err) {
+    if (err instanceof ApiError) throw err;
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new ApiError(
+        0,
+        'timeout',
+        'The API took too long to respond. Check that the backend is running (cd backend && npm run dev).',
+      );
+    }
+    if (err instanceof TypeError) {
+      throw new ApiError(
+        0,
+        'network_error',
+        `Cannot reach the API (${url}). Start the backend: cd backend && npm run dev — then restart the Next app if you changed config.`,
+      );
+    }
+    throw err;
   } finally {
     clearTimeout(timeout);
   }

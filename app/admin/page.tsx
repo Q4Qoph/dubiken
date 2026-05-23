@@ -13,7 +13,9 @@ import {
   Send,
   Save,
 } from 'lucide-react';
+import { useMounted } from '@/hooks/use-mounted';
 import { useAdminAnalytics, useShipments } from '@/lib/api/hooks';
+import { formatKshLabelFromKes, formatCompactKes } from '@/lib/currency';
 import AdminPageFooter from '@/components/admin/AdminPageFooter';
 
 const BLUE = '#004aad';
@@ -46,39 +48,12 @@ function RouteBadge({ from, to }: { from: string; to: string }) {
   );
 }
 
-function ActionButton({
-  label,
-  style,
-}: {
-  label: string;
-  style: 'solid' | 'outline';
-}) {
-  if (style === 'solid') {
-    return (
-      <button
-        type="button"
-        className="px-3 py-1.5 text-xs font-bold rounded text-white hover:opacity-90 whitespace-nowrap"
-        style={{ backgroundColor: BLUE_DARK }}
-      >
-        {label}
-      </button>
-    );
-  }
-  return (
-    <button
-      type="button"
-      className="px-3 py-1.5 text-xs font-bold rounded border-2 bg-white hover:bg-[#f8f9ff] whitespace-nowrap"
-      style={{ borderColor: BLUE, color: BLUE }}
-    >
-      {label}
-    </button>
-  );
-}
-
 export default function AdminDashboardPage() {
   const [note, setNote] = useState('');
+  const mounted = useMounted();
   const { dashboard, inventoryKpis, charts, isLoading } = useAdminAnalytics();
   const kpis = dashboard?.kpis;
+  const kpiPending = !mounted || (isLoading && !kpis);
   const sourcingRows = dashboard?.sourcingRows ?? [];
   const weeklyData = charts?.weekly_volume ?? [];
   const topCategories = charts?.top_categories ?? [];
@@ -103,48 +78,50 @@ export default function AdminDashboardPage() {
     [shipments],
   );
 
+  const revenueChange = kpis?.global_sales_change ?? '';
+  const revenueChangeColor = revenueChange.startsWith('+')
+    ? 'text-green-600'
+    : revenueChange.startsWith('-')
+      ? 'text-red-600'
+      : 'text-[#737784]';
+
   const kpiCards = [
     {
-      label: 'Global Sales',
+      label: 'Marketplace revenue',
       value: kpis
-        ? kpis.global_sales_usd.toLocaleString('en-KE')
-        : isLoading
+        ? formatKshLabelFromKes(kpis.global_sales_usd)
+        : kpiPending
           ? '…'
-          : '0',
-      change: kpis?.global_sales_change ?? '',
-      changeColor: 'text-green-600',
+          : 'KSh 0',
+      change: mounted && kpis ? `${revenueChange} · last 28 days` : '',
+      changeColor: revenueChangeColor,
       icon: DollarSign,
       iconBefore: TrendingUp,
     },
     {
       label: 'Active Requests',
-      value: kpis ? String(kpis.active_requests) : '…',
+      value: kpis ? String(kpis.active_requests) : kpiPending ? '…' : '0',
       change: kpis ? `${kpis.pending_quotes} pending quotes` : '',
       changeColor: 'text-[#737784]',
       icon: Package,
     },
     {
       label: 'On-Time Delivery',
-      value: kpis ? `${kpis.otd_percent}%` : '…',
-      change: kpis ? `${kpis.delayed_shipments} delayed` : '',
+      value: kpis ? `${kpis.otd_percent}%` : kpiPending ? '…' : '0%',
+      change: kpis ? `${kpis.delayed_shipments} need attention` : '',
       changeColor: 'text-orange-600',
       icon: Clock,
       iconBefore: AlertTriangle,
     },
     {
       label: 'Inventory Value',
-      value: inventoryKpis?.total_inventory_value ?? (isLoading ? '…' : '0'),
-      change: inventoryKpis?.hubs_label ?? '',
+      value:
+        inventoryKpis?.total_inventory_value ?? (kpiPending ? '…' : '0'),
+      change: mounted ? (inventoryKpis?.hubs_label ?? '') : '',
       changeColor: 'text-[#737784]',
       icon: TrendingUp,
     },
   ] as const;
-
-  if (isLoading && !kpis) {
-    return (
-      <div className="p-8 text-sm text-[#737784] bg-[#f8f9ff] min-h-full">Loading dashboard...</div>
-    );
-  }
 
   return (
     <div className="flex flex-col min-h-full bg-[#f8f9ff]">
@@ -157,10 +134,6 @@ export default function AdminDashboardPage() {
             <p className="text-sm text-[#737784] mt-1">
               Operations, sourcing, and marketplace performance.
             </p>
-          </div>
-          <div className="flex items-center gap-2 border border-[#c3c6d5] rounded-lg px-4 py-2.5 bg-white text-sm text-[#434653] shrink-0">
-            <Calendar className="w-4 h-4" style={{ color: BLUE }} />
-            <span className="font-bold">Last 4 weeks</span>
           </div>
         </div>
 
@@ -196,7 +169,8 @@ export default function AdminDashboardPage() {
         <section>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <div className="lg:col-span-2 bg-white border border-[#e5eeff] rounded-lg p-5">
-              <h2 className="text-sm font-bold text-black mb-1">Trade Volume by Market</h2>
+              <h2 className="text-sm font-bold text-black mb-1">Order revenue by hub (KES)</h2>
+              <p className="text-[10px] text-[#737784] mb-3">Weekly totals from marketplace orders</p>
               <div className="flex items-center gap-4 mb-4 text-[10px] font-bold">
                 <span className="flex items-center gap-1.5">
                   <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: BLUE }} />
@@ -212,7 +186,7 @@ export default function AdminDashboardPage() {
                 </span>
               </div>
               <div className="flex items-end gap-6 h-52 px-2">
-                {weeklyData.length === 0 && !isLoading ? (
+                {weeklyData.length === 0 && mounted && !isLoading ? (
                   <p className="text-sm text-[#737784] py-8">No order volume in this period yet.</p>
                 ) : null}
                 {weeklyData.map((w) => (
@@ -241,14 +215,18 @@ export default function AdminDashboardPage() {
             </div>
 
             <div className="bg-white border border-[#e5eeff] rounded-lg p-5">
-              <h2 className="text-sm font-bold text-black mb-4">Top Categories</h2>
+              <h2 className="text-sm font-bold text-black mb-1">Top categories by sales</h2>
+              <p className="text-[10px] text-[#737784] mb-4">All-time order revenue by product category</p>
               <div className="space-y-4">
+                {topCategories.length === 0 && mounted && !isLoading ? (
+                  <p className="text-xs text-[#737784]">No order revenue yet.</p>
+                ) : null}
                 {topCategories.map((cat) => (
                   <div key={cat.name}>
                     <div className="flex justify-between text-xs mb-1">
                       <span className="font-medium text-[#434653]">{cat.name}</span>
                       <span className="font-bold" style={{ color: BLUE }}>
-                        {(cat.value_usd / 1000).toFixed(0)}k
+                        {formatCompactKes(cat.value_usd)}
                       </span>
                     </div>
                     <div className="h-2 bg-[#eff4ff] rounded-full overflow-hidden">
@@ -311,18 +289,13 @@ export default function AdminDashboardPage() {
 
                     <p className="text-xs text-[#737784] shrink-0 lg:w-24">{row.time_ago}</p>
 
-                    <div className="flex flex-wrap items-center gap-2 shrink-0">
-                      <ActionButton
-                        label={row.primary_action.label}
-                        style={row.primary_action.style}
-                      />
-                      {row.secondary_action && (
-                        <ActionButton
-                          label={row.secondary_action.label}
-                          style={row.secondary_action.style}
-                        />
-                      )}
-                    </div>
+                    <Link
+                      href={`/admin/sourcing/${row.id}`}
+                      className="shrink-0 px-3 py-1.5 text-xs font-bold rounded border-2 bg-white hover:bg-[#f8f9ff] whitespace-nowrap"
+                      style={{ borderColor: BLUE, color: BLUE }}
+                    >
+                      View Details
+                    </Link>
                   </div>
                 ))}
               </div>

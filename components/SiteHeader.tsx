@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState, type FormEvent } from 'react';
 import Link from 'next/link';
-import { Search, ShoppingCart, Bell } from 'lucide-react';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
+import { Search, ShoppingCart } from 'lucide-react';
 import { useCart } from '@/hooks/use-cart';
 import { useMounted } from '@/hooks/use-mounted';
 import { useCurrentUser } from '@/lib/api/hooks';
@@ -15,8 +16,53 @@ export interface SiteHeaderProps {
   className?: string;
 }
 
+function HeaderSearch({ placeholder }: { placeholder: string }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const urlSearch = searchParams.get('search') ?? '';
+  const [query, setQuery] = useState(urlSearch);
+
+  useEffect(() => {
+    setQuery(urlSearch);
+  }, [urlSearch]);
+
+  function goToMarketplaceSearch(term: string) {
+    const params = new URLSearchParams();
+    const q = term.trim();
+    if (q) params.set('search', q);
+    if (pathname.startsWith('/marketplace')) {
+      const category = searchParams.get('category');
+      const hub = searchParams.get('hub');
+      if (category) params.set('category', category);
+      if (hub) params.set('hub', hub);
+    }
+    const qs = params.toString();
+    router.push(qs ? `/marketplace?${qs}` : '/marketplace');
+  }
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    goToMarketplaceSearch(query);
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="relative w-full" role="search">
+      <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-[#737784] pointer-events-none" />
+      <input
+        type="search"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder={placeholder}
+        className="w-full pl-11 pr-4 py-2.5 border border-[#c3c6d5] rounded bg-[#f8f9ff] text-sm text-[#0b1c30] placeholder:text-[#737784] focus:outline-none focus:border-[#004aad]"
+        aria-label="Search marketplace"
+      />
+    </form>
+  );
+}
+
 export default function SiteHeader({
-  searchPlaceholder = 'Search for products, vendors or categories...',
+  searchPlaceholder = 'Search products and categories…',
   className = '',
 }: SiteHeaderProps) {
   const mounted = useMounted();
@@ -46,26 +92,24 @@ export default function SiteHeader({
         <Link href="/" className="font-bold text-xl shrink-0" style={{ color: BLUE }}>
           Dubiken
         </Link>
+        <Link
+          href="/marketplace"
+          className="hidden sm:block text-sm font-semibold text-[#434653] hover:text-[#004aad] shrink-0"
+        >
+          Marketplace
+        </Link>
 
         <div className="flex-1 max-w-xl mx-auto hidden sm:block">
-          <div className="relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-[#737784]" />
-            <input
-              type="search"
-              placeholder={searchPlaceholder}
-              className="w-full pl-11 pr-4 py-2.5 border border-[#c3c6d5] rounded bg-[#f8f9ff] text-sm text-[#0b1c30] placeholder:text-[#737784] focus:outline-none focus:border-[#004aad]"
-            />
-          </div>
+          <Suspense
+            fallback={
+              <div className="h-[42px] rounded bg-[#f8f9ff] border border-[#c3c6d5] animate-pulse" />
+            }
+          >
+            <HeaderSearch placeholder={searchPlaceholder} />
+          </Suspense>
         </div>
 
         <div className="flex items-center gap-1 sm:gap-2 shrink-0 ml-auto sm:ml-0">
-          <button
-            type="button"
-            className="p-2 text-[#0b1c30] hover:bg-[#f8f9ff] rounded"
-            aria-label="Notifications"
-          >
-            <Bell className="w-5 h-5" />
-          </button>
           <Link href="/checkout" className="relative p-2 text-[#0b1c30] hover:bg-[#f8f9ff] rounded">
             <ShoppingCart className="w-5 h-5" />
             {mounted && itemCount > 0 && (

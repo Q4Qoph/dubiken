@@ -1,77 +1,85 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Minus, Plus, Shield, ShoppingBag } from 'lucide-react';
+import { Minus, Plus, Shield } from 'lucide-react';
+import { EmptyCartState } from '@/components/cart/empty-cart-state';
+import { OrderSuccessState } from '@/components/cart/order-success-state';
 import SiteHeader from '@/components/SiteHeader';
 import SiteFooter from '@/components/SiteFooter';
 import { useCart } from '@/hooks/use-cart';
-import { useCheckoutCompleteMutation, useCheckoutShippingMutation } from '@/lib/api/hooks';
+import {
+  useCheckoutCompleteMutation,
+  useCheckoutShippingMutation,
+  useGuestCheckoutMutation,
+} from '@/lib/api/hooks';
 import type { CheckoutSummary } from '@/lib/contracts';
-import { formatPrice } from '@/lib/currency';
+import { buildCheckoutSummaryKes } from '@/lib/checkout-summary';
+import { clearGuestCart } from '@/lib/guest-cart';
+import { KENYA_REGIONS } from '@/lib/contracts';
+import { formatAmount, formatKshLabel } from '@/lib/currency';
 
 const BLUE = '#004aad';
 const BLUE_DARK = '#00357f';
 const SECTION_BG = '#eff4ff';
 
+function lineTotalKes(item: { unitPriceKes: number; quantity: number }) {
+  return item.unitPriceKes * item.quantity;
+}
+
 export default function CheckoutPage() {
-  const { items, updateQuantity, ready, isPending } = useCart();
+  const { items, updateQuantity, ready, isPending, isLoggedIn, clearCart } = useCart();
   const shippingMutation = useCheckoutShippingMutation();
   const completeMutation = useCheckoutCompleteMutation();
+  const guestCheckoutMutation = useGuestCheckoutMutation();
   const [step, setStep] = useState(1);
   const [checkoutId, setCheckoutId] = useState<string | null>(null);
   const [summary, setSummary] = useState<CheckoutSummary | null>(null);
+  const [orderPlaced, setOrderPlaced] = useState<string | null>(null);
   const [form, setForm] = useState({
     fullName: '',
     phone: '',
+    email: '',
     address: '',
     city: 'Nairobi',
     region: 'Nairobi County',
   });
 
   const hasItems = items.length > 0;
-  const subtotal = summary?.subtotal ?? items.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
-  const shipping = summary?.shipping ?? 0;
-  const customs = summary?.customs ?? 0;
-  const insurance = summary?.insurance ?? 0;
-  const total = summary?.total ?? subtotal + shipping + customs + insurance;
+  const subtotalKes = useMemo(
+    () => items.reduce((sum, i) => sum + lineTotalKes(i), 0),
+    [items],
+  );
+  const displaySummary = summary ?? (subtotalKes > 0 ? buildCheckoutSummaryKes(subtotalKes) : null);
+  const total = displaySummary?.total ?? subtotalKes;
 
   const steps = [
-    { n: 1, label: 'Shipping Info' },
+    { n: 1, label: 'Contact & shipping' },
     { n: 2, label: 'Payment' },
     { n: 3, label: 'Review' },
   ];
 
-  if (ready && !hasItems) {
+  const contactValid =
+    form.fullName.trim() &&
+    form.phone.trim() &&
+    form.email.trim() &&
+    form.address.trim();
+
+  if (ready && !hasItems && !orderPlaced) {
     return (
       <div className="min-h-screen bg-white flex flex-col">
         <SiteHeader searchPlaceholder="Search orders..." />
-        <main className="flex-1 bg-[#f8f9ff] flex items-center justify-center px-6 py-16">
-          <div className="max-w-md text-center bg-white border border-[#e5eeff] rounded-lg p-8">
-            <ShoppingBag className="w-12 h-12 mx-auto mb-4 text-[#737784]" />
-            <h1 className="text-xl font-bold text-black mb-2">Your cart is empty</h1>
-            <p className="text-sm text-[#737784] mb-6">
-              Add products from the marketplace before checkout. Sign in to save items to your
-              account cart.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <Link
-                href="/marketplace"
-                className="px-5 py-2.5 rounded-lg text-sm font-bold text-white"
-                style={{ backgroundColor: BLUE_DARK }}
-              >
-                Browse marketplace
-              </Link>
-              <Link
-                href="/auth/login"
-                className="px-5 py-2.5 rounded-lg text-sm font-bold border-2"
-                style={{ borderColor: BLUE, color: BLUE }}
-              >
-                Sign in
-              </Link>
-            </div>
-          </div>
-        </main>
+        <EmptyCartState />
+        <SiteFooter />
+      </div>
+    );
+  }
+
+  if (orderPlaced) {
+    return (
+      <div className="min-h-screen bg-white flex flex-col">
+        <SiteHeader />
+        <OrderSuccessState orderNumber={orderPlaced} email={form.email} />
         <SiteFooter />
       </div>
     );
@@ -83,6 +91,12 @@ export default function CheckoutPage() {
 
       <main className="flex-1 bg-[#f8f9ff]">
         <div className="max-w-[1280px] mx-auto px-6 py-6">
+          <p className="text-sm text-[#737784] mb-4">
+            {isLoggedIn
+              ? 'Signed in — your cart is saved to your account.'
+              : 'Guest checkout — enter your contact details so we can reach you about your order.'}
+          </p>
+
           <div className="flex items-center justify-center gap-0 mb-6 pb-4 border-b border-[#e5eeff]">
             {steps.map((s, idx) => {
               const isCompleted = s.n < step;
@@ -111,9 +125,7 @@ export default function CheckoutPage() {
                             : 'text-[#737784]'
                       }`}
                       style={
-                        isActive
-                          ? { color: BLUE_DARK, borderColor: BLUE_DARK }
-                          : undefined
+                        isActive ? { color: BLUE_DARK, borderColor: BLUE_DARK } : undefined
                       }
                     >
                       {s.label}
@@ -163,7 +175,7 @@ export default function CheckoutPage() {
                           SKU: {item.sku} · Origin: {item.origin}
                         </p>
                         <p className="text-sm font-bold mt-1" style={{ color: BLUE }}>
-                          {formatPrice(item.unitPrice * item.quantity)}
+                          {formatKshLabel(lineTotalKes(item))}
                         </p>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
@@ -192,12 +204,15 @@ export default function CheckoutPage() {
 
               {step >= 1 && (
                 <div className="bg-white rounded-lg border border-[#e5eeff] p-4">
-                  <h2 className="text-base font-bold text-black mb-4">Shipping Information</h2>
+                  <h2 className="text-base font-bold text-black mb-1">Your contact details</h2>
+                  <p className="text-xs text-[#737784] mb-4">
+                    Required so our team can confirm your order and arrange delivery.
+                  </p>
                   <div className="space-y-4">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-[#434653] mb-1">
-                          Full Name
+                          Full name *
                         </label>
                         <input
                           type="text"
@@ -209,7 +224,7 @@ export default function CheckoutPage() {
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-[#434653] mb-1">
-                          Phone Number
+                          Phone *
                         </label>
                         <input
                           type="tel"
@@ -222,19 +237,33 @@ export default function CheckoutPage() {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-[#434653] mb-1">
-                        Shipping Address
+                        Email *
+                      </label>
+                      <input
+                        type="email"
+                        value={form.email}
+                        onChange={(e) => setForm({ ...form, email: e.target.value })}
+                        placeholder="you@company.co.ke"
+                        className="w-full px-3 py-2 border border-[#c3c6d5] rounded text-sm focus:outline-none focus:border-[#004aad]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-[#434653] mb-1">
+                        Shipping address *
                       </label>
                       <input
                         type="text"
                         value={form.address}
                         onChange={(e) => setForm({ ...form, address: e.target.value })}
-                        placeholder="Street name, Building, Apartment"
+                        placeholder="Street, building, apartment"
                         className="w-full px-3 py-2 border border-[#c3c6d5] rounded text-sm focus:outline-none focus:border-[#004aad]"
                       />
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-[#434653] mb-1">City</label>
+                        <label className="block text-sm font-medium text-[#434653] mb-1">
+                          City
+                        </label>
                         <input
                           type="text"
                           value={form.city}
@@ -244,17 +273,18 @@ export default function CheckoutPage() {
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-[#434653] mb-1">
-                          Region/State
+                          Region
                         </label>
                         <select
                           value={form.region}
                           onChange={(e) => setForm({ ...form, region: e.target.value })}
                           className="w-full px-3 py-2 border border-[#c3c6d5] rounded text-sm focus:outline-none focus:border-[#004aad] bg-white"
                         >
-                          <option>Nairobi County</option>
-                          <option>Mombasa County</option>
-                          <option>Kisumu County</option>
-                          <option>Nakuru County</option>
+                          {KENYA_REGIONS.map((county) => (
+                            <option key={county} value={county}>
+                              {county}
+                            </option>
+                          ))}
                         </select>
                       </div>
                     </div>
@@ -266,9 +296,33 @@ export default function CheckoutPage() {
                 <div className="bg-white rounded-lg border border-[#e5eeff] p-4">
                   <h2 className="text-base font-bold text-black mb-2">Payment</h2>
                   <p className="text-sm text-[#737784]">
-                    Payment method selection will be completed in the next step. Totals are from
-                    your cart on the server.
+                    Pay on invoice — our team will contact you at {form.phone} to arrange M-Pesa,
+                    bank transfer, or card payment.
                   </p>
+                </div>
+              )}
+
+              {step >= 3 && (
+                <div className="bg-white rounded-lg border border-[#e5eeff] p-4">
+                  <h2 className="text-base font-bold text-black mb-3">Review contact</h2>
+                  <dl className="text-sm space-y-1 text-[#434653]">
+                    <div>
+                      <span className="text-[#737784]">Name: </span>
+                      {form.fullName}
+                    </div>
+                    <div>
+                      <span className="text-[#737784]">Phone: </span>
+                      {form.phone}
+                    </div>
+                    <div>
+                      <span className="text-[#737784]">Email: </span>
+                      {form.email}
+                    </div>
+                    <div>
+                      <span className="text-[#737784]">Address: </span>
+                      {form.address}, {form.city}, {form.region}
+                    </div>
+                  </dl>
                 </div>
               )}
             </div>
@@ -281,91 +335,83 @@ export default function CheckoutPage() {
                 <h2 className="text-base font-bold text-black mb-3">Order Summary</h2>
                 <div className="space-y-3 mb-4">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-[#737784]">Items Subtotal</span>
-                    <span className="text-sm font-medium text-black">{formatPrice(subtotal)}</span>
-                  </div>
-                  {summary ? (
-                    <>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-[#737784]">International Shipping</span>
-                        <span className="text-sm font-medium text-black">
-                          {formatPrice(shipping)}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-[#737784]">Customs & Duties (Est.)</span>
-                        <span className="text-sm font-medium text-[#1a7a4a]">
-                          {formatPrice(customs)}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-[#737784]">Insurance</span>
-                        <span className="text-sm font-medium text-black">
-                          {formatPrice(insurance)}
-                        </span>
-                      </div>
-                    </>
-                  ) : (
-                    <p className="text-xs text-[#737784]">
-                      Shipping fees calculated after you enter shipping details.
-                    </p>
-                  )}
-                  <div className="border-t border-[#c3c6d5] pt-2 flex items-center justify-between">
-                    <span className="text-sm font-bold text-black">Total</span>
+                    <span className="text-sm text-[#737784]">Product total</span>
                     <span className="text-lg font-bold" style={{ color: BLUE }}>
-                      {formatPrice(total)}
+                      KSh {formatAmount(total)}
                     </span>
                   </div>
-                </div>
-
-                <div className="rounded-lg p-2.5 mb-3 border border-[#b0c6ff] bg-white/80">
-                  <div className="flex items-start gap-2">
-                    <Shield className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: BLUE }} />
-                    <div>
-                      <p className="text-xs font-bold mb-0.5" style={{ color: BLUE }}>
-                        Sourcing Guarantee
-                      </p>
-                      <p className="text-xs text-[#434653]">
-                        Quality inspection and safe delivery guaranteed for CN-AE-KE routes.
-                      </p>
-                    </div>
-                  </div>
+                  <p className="text-xs text-[#737784]">
+                    Price is for products only. Our team will confirm any delivery costs when they
+                    contact you.
+                  </p>
                 </div>
 
                 <button
                   type="button"
-                  disabled={!ready || shippingMutation.isPending || completeMutation.isPending}
+                  disabled={
+                    !ready ||
+                    shippingMutation.isPending ||
+                    completeMutation.isPending ||
+                    guestCheckoutMutation.isPending
+                  }
                   onClick={async () => {
                     if (step === 1) {
-                      if (!form.fullName.trim() || !form.phone.trim() || !form.address.trim()) {
-                        return;
+                      if (!contactValid) return;
+                      const shippingPayload = {
+                        full_name: form.fullName.trim(),
+                        phone: form.phone.trim(),
+                        email: form.email.trim(),
+                        address: form.address.trim(),
+                        city: form.city.trim(),
+                        region: form.region,
+                      };
+                      if (isLoggedIn) {
+                        try {
+                          const res = await shippingMutation.mutateAsync(shippingPayload);
+                          setCheckoutId(res.checkout_id);
+                          setSummary(res.summary);
+                        } catch {
+                          return;
+                        }
+                      } else {
+                        setSummary(buildCheckoutSummaryKes(subtotalKes));
                       }
-                      try {
-                        const res = await shippingMutation.mutateAsync({
-                          full_name: form.fullName,
-                          phone: form.phone,
-                          address: form.address,
-                          city: form.city,
-                          region: form.region,
-                        });
-                        setCheckoutId(res.checkout_id);
-                        setSummary(res.summary);
-                        setStep(2);
-                      } catch {
-                        return;
-                      }
+                      setStep(2);
                       return;
                     }
                     if (step === 2) {
                       setStep(3);
                       return;
                     }
-                    if (step === 3 && checkoutId) {
+                    if (step === 3) {
+                      const shippingPayload = {
+                        full_name: form.fullName.trim(),
+                        phone: form.phone.trim(),
+                        email: form.email.trim(),
+                        address: form.address.trim(),
+                        city: form.city.trim(),
+                        region: form.region,
+                      };
                       try {
-                        await completeMutation.mutateAsync({
-                          checkout_id: checkoutId,
-                          payment_method: 'card',
-                        });
+                        if (isLoggedIn && checkoutId) {
+                          const res = await completeMutation.mutateAsync({
+                            checkout_id: checkoutId,
+                            payment_method: 'card',
+                          });
+                          setOrderPlaced(res.order_number);
+                        } else {
+                          const res = await guestCheckoutMutation.mutateAsync({
+                            items: items.map((i) => ({
+                              product_id: i.productId ?? i.id,
+                              quantity: i.quantity,
+                            })),
+                            shipping: shippingPayload,
+                            payment_method: 'card',
+                          });
+                          clearGuestCart();
+                          clearCart();
+                          setOrderPlaced(res.order_number);
+                        }
                       } catch {
                         return;
                       }
@@ -375,11 +421,11 @@ export default function CheckoutPage() {
                   style={{ backgroundColor: BLUE_DARK }}
                 >
                   {step === 3
-                    ? completeMutation.isPending
+                    ? completeMutation.isPending || guestCheckoutMutation.isPending
                       ? 'Placing order…'
-                      : 'Place Order'
+                      : 'Place order'
                     : step === 1 && shippingMutation.isPending
-                      ? 'Calculating…'
+                      ? 'Saving…'
                       : 'Continue'}
                 </button>
               </div>

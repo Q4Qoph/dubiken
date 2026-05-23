@@ -4,6 +4,11 @@ const STORAGE_KEY = 'dubiken_session';
 
 export const AUTH_SESSION_EVENT = 'dubiken-auth-change';
 
+/** Fired after session is cleared due to an API 401 (e.g. expired token). */
+export const AUTH_UNAUTHORIZED_EVENT = 'dubiken-auth-unauthorized';
+
+const AUTH_PATHS_NO_AUTO_LOGOUT = ['/auth/login', '/auth/register'];
+
 export interface AuthSession {
   loggedIn: boolean;
   email?: string;
@@ -38,6 +43,20 @@ export function clearAuthSession(): void {
   if (typeof window === 'undefined') return;
   localStorage.removeItem(STORAGE_KEY);
   window.dispatchEvent(new Event(AUTH_SESSION_EVENT));
+}
+
+/** Clear local session when the API rejects credentials (401). */
+export function clearAuthSessionOnUnauthorized(apiPath: string, hadBearerToken: boolean): void {
+  if (typeof window === 'undefined' || !hadBearerToken) return;
+  if (AUTH_PATHS_NO_AUTO_LOGOUT.some((p) => apiPath === p || apiPath.startsWith(`${p}/`))) {
+    return;
+  }
+  clearAuthSession();
+  window.dispatchEvent(new Event(AUTH_UNAUTHORIZED_EVENT));
+  const path = window.location.pathname;
+  if (path.startsWith('/admin') || path.startsWith('/dashboard')) {
+    window.location.assign('/auth/login');
+  }
 }
 
 export function getAuthSession(): AuthSession | null {

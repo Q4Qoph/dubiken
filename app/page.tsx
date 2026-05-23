@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { ArrowRight, Package, ImageIcon } from 'lucide-react';
 import SiteHeader from '@/components/SiteHeader';
 import SiteFooter from '@/components/SiteFooter';
+import PageLoader from '@/components/PageLoader';
+import ProductCard from '@/components/ProductCard';
 import { useHomePageData } from '@/lib/api/hooks';
 import type { ExploreCategory } from '@/lib/types';
 
@@ -11,6 +13,8 @@ import type { ExploreCategory } from '@/lib/types';
 const RED_ACCENT = '#c41e3a';
 const BLUE = '#004aad';
 const BLUE_DARK = '#00357f';
+/** Brand yellow/orange — matches CTA buttons */
+const YELLOW = '#ff924d';
 const SECTION_BG = '#eff4ff';
 const GRID_CLASS = [
   'md:row-span-2 md:col-start-1 md:row-start-1 min-h-[280px] md:min-h-[360px]',
@@ -19,17 +23,11 @@ const GRID_CLASS = [
   'md:col-span-2 md:col-start-2 md:row-start-2 min-h-[170px]',
 ] as const;
 
-const HUB_FLAG: Record<string, string> = {
-  CN: '🇨🇳',
-  AE: '🇦🇪',
-  KE: '🇰🇪',
-};
-
 function categoryCards(categories: ExploreCategory[]) {
   return categories.slice(0, 4).map((c, i) => ({
     name: c.name,
-    description: `${c.product_count} products · Hub ${c.origin}`,
-    href: '/categories',
+    description: `${c.product_count} product${c.product_count === 1 ? '' : 's'}`,
+    href: `/marketplace?category=${encodeURIComponent(c.name)}`,
     image: c.image_url,
     placeholder: !c.image_url,
     className: GRID_CLASS[i] ?? GRID_CLASS[0],
@@ -69,15 +67,6 @@ function CategoryCard({
   );
 }
 
-function MarketTag({ market, flag }: { market: string; flag: string }) {
-  return (
-    <span className="absolute top-3 left-3 z-10 flex items-center gap-1 bg-white border border-black text-[10px] font-semibold text-[#0b1c30] px-2 py-0.5">
-      <span>{flag}</span>
-      {market}
-    </span>
-  );
-}
-
 /** Subtle grid pattern on CTA — not a color gradient */
 function CtaPattern() {
   return (
@@ -97,6 +86,11 @@ export default function HomePage() {
   const categories = data?.categories ?? [];
   const products = data?.products ?? [];
   const categoryGrid = categoryCards(categories);
+  const showLoader = isLoading && !data;
+
+  if (showLoader) {
+    return <PageLoader />;
+  }
 
   return (
     <div className="min-h-screen bg-white">
@@ -142,13 +136,23 @@ export default function HomePage() {
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-90">
                 <svg viewBox="0 0 320 200" className="w-[70%] max-w-sm" aria-hidden>
                   {[40, 65, 50, 90, 70, 110, 85].map((h, i) => (
-                    <rect key={i} x={30 + i * 38} y={160 - h} width={24} height={h} fill="#b0c6ff" rx="2" />
+                    <rect
+                      key={i}
+                      x={30 + i * 38}
+                      y={160 - h}
+                      width={24}
+                      height={h}
+                      fill="#b0c6ff"
+                      rx="2"
+                    />
                   ))}
                   <polyline
                     points="30,120 68,95 106,110 144,70 182,85 220,55 258,65"
                     fill="none"
-                    stroke="#004aad"
-                    strokeWidth="2"
+                    stroke={YELLOW}
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
                   />
                 </svg>
               </div>
@@ -187,10 +191,7 @@ export default function HomePage() {
             </p>
           ) : null}
           <div className="grid grid-cols-1 md:grid-cols-3 md:grid-rows-2 gap-4 md:gap-5">
-            {isLoading && categoryGrid.length === 0 ? (
-              <p className="col-span-full text-sm text-[#737784]">Loading categories…</p>
-            ) : null}
-            {!isLoading && categoryGrid.length === 0 ? (
+            {categoryGrid.length === 0 ? (
               <p className="col-span-full text-sm text-[#737784]">
                 No categories yet. Sign in as admin to publish categories.
               </p>
@@ -205,15 +206,10 @@ export default function HomePage() {
       {/* Featured products */}
       <section className="bg-white py-12 lg:py-16">
         <div className="max-w-[1280px] mx-auto px-6">
-          <h2 className="text-3xl sm:text-4xl font-bold text-[#004aad] flex items-center gap-2.5 mb-10">
-            Featured Products
-          </h2>
+          <h2 className="text-3xl sm:text-4xl font-bold text-[#004aad] mb-10">Featured Products</h2>
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5">
-            {isLoading && products.length === 0 ? (
-              <p className="col-span-full text-sm text-[#737784]">Loading products…</p>
-            ) : null}
-            {!isLoading && products.length === 0 ? (
+            {products.length === 0 ? (
               <p className="col-span-full text-sm text-[#737784]">
                 No marketplace products yet.{' '}
                 <Link href="/marketplace" className="font-bold underline" style={{ color: BLUE }}>
@@ -222,34 +218,17 @@ export default function HomePage() {
               </p>
             ) : null}
             {products.map((product) => (
-              <Link
+              <ProductCard
                 key={product.id}
-                href={`/product/${product.productId}`}
-                className="flex flex-col rounded-lg overflow-hidden bg-white border border-[#c3c6d5] hover:border-[#004aad]"
-              >
-                <div className="relative bg-[#eff4ff] h-36 sm:h-[168px] flex items-center justify-center border-b border-[#c3c6d5]">
-                  <MarketTag
-                    market={product.origin}
-                    flag={HUB_FLAG[product.origin] ?? product.origin}
-                  />
-                  <img
-                    src={product.image_url}
-                    alt={product.name}
-                    className="max-h-[78%] max-w-[78%] object-contain"
-                  />
-                </div>
-                <div className="p-4 flex-1 flex flex-col bg-white">
-                  <h3 className="text-sm font-bold text-[#004aad] leading-snug line-clamp-2">
-                    {product.name}
-                  </h3>
-                  <p className="text-base font-bold text-[#004aad] mt-2">
-                    {product.price_kes}
-                  </p>
-                  <p className="text-xs font-normal text-[#737784] text-right mt-auto pt-3">
-                    {product.vendor}
-                  </p>
-                </div>
-              </Link>
+                product={{
+                  productId: product.productId,
+                  name: product.name,
+                  image_url: product.image_url,
+                  origin: product.origin,
+                  price_kes: product.price_kes,
+                  stock: product.stock,
+                }}
+              />
             ))}
           </div>
         </div>
