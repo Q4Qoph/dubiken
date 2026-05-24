@@ -11,6 +11,7 @@ import {
   Tags,
   Plus,
 } from 'lucide-react';
+import DubikenLogo from '@/components/DubikenLogo';
 import { SidebarLogoutLink } from '@/components/dashboard/sidebar-logout-link';
 import UserAccountMenu from '@/components/UserAccountMenu';
 
@@ -30,9 +31,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <div className="min-h-screen flex flex-col bg-[#f0f4f9]">
       <header className="bg-white border-b border-[#e2e8f0] h-14 flex items-center px-4 gap-4 z-20 sticky top-0">
-        <Link href="/admin" className="text-[#1a2d5a] font-bold text-lg tracking-tight w-48 shrink-0">
-          Dubiken
-        </Link>
+        <DubikenLogo href="/admin" size="sm" />
         
         <div className="flex-1 max-w-sm ml-auto">
          

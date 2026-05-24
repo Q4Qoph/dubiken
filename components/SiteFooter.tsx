@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Globe, Share2 } from 'lucide-react';
+import DubikenLogo from '@/components/DubikenLogo';
 
 const BLUE_BOLD = '#004aad';
 const FOOTER_BG = '#dce9ff';
@@ -12,9 +13,9 @@ export default function SiteFooter() {
       <div className="max-w-[1280px] mx-auto px-6 py-12">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-10">
           <div>
-            <p className="font-bold text-lg mb-4" style={{ color: BLUE_BOLD }}>
-              Dubiken
-            </p>
+            <div className="mb-4">
+              <DubikenLogo href="/" size="lg" />
+            </div>
             <p className="text-sm font-normal text-black leading-relaxed">
               Certified electronics, perfumes, and spare parts imported through Dubai and China.
             </p>
