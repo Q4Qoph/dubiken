@@ -1,15 +1,13 @@
 import Link from 'next/link';
+import DubikenLogo from '@/components/DubikenLogo';
 
-const BLUE = '#004aad';
 const FOOTER_BG = '#dce9ff';
 
 export default function AdminPageFooter() {
   return (
     <footer style={{ backgroundColor: FOOTER_BG }} className="border-t border-[#c3c6d5]">
       <div className="px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-        <p className="font-bold" style={{ color: BLUE }}>
-          Dubiken
-        </p>
+        <DubikenLogo href="/" size="sm" />
         <div className="flex flex-wrap justify-center gap-4 text-black">
           <Link href="#">Sourcing Guide</Link>
           <Link href="#">Shipping Policy</Link>

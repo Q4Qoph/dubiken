@@ -14,6 +14,9 @@ export const metadata: Metadata = {
   title: 'Dubiken | Electronics, perfumes & spare parts',
   description:
     'Certified electronics, perfumes, and spare parts imported through Dubai and China. One marketplace.',
+  icons: {
+    icon: '/logo.png',
+  },
 };
 
 export default function RootLayout({

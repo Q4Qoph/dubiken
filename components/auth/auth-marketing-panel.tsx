@@ -1,4 +1,5 @@
-import { Globe, Package, Truck } from 'lucide-react';
+import { Package, Truck } from 'lucide-react';
+import DubikenLogo from '@/components/DubikenLogo';
 
 export default function AuthMarketingPanel() {
   return (
@@ -28,9 +29,8 @@ export default function AuthMarketingPanel() {
       </div>
 
       <div className="relative z-10">
-        <div className="inline-flex items-center gap-2 border border-white/30 rounded-full px-4 py-2 text-white/90 text-sm mb-8">
-          <Globe className="w-4 h-4" />
-          Shop with Dubiken
+        <div className="mb-8">
+          <DubikenLogo href="/" size="lg" />
         </div>
         <h1 className="text-white text-4xl font-bold leading-tight mb-4">
           Products from Dubai

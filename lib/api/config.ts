@@ -11,7 +11,7 @@ function resolveApiBaseUrl(): string {
     if (process.env.NODE_ENV === 'development') return '/api/v1';
     return env || '/api/v1';
   }
-  return env || 'http://localhost:3001/api/v1';
+  return env || 'http://localhost:3002/api/v1';
 }
 
 export const API_BASE_URL = resolveApiBaseUrl();

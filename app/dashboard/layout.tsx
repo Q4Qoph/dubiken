@@ -10,6 +10,7 @@ import {
   Plus,
   Store,
 } from 'lucide-react';
+import DubikenLogo from '@/components/DubikenLogo';
 import { SidebarLogoutLink } from '@/components/dashboard/sidebar-logout-link';
 import UserAccountMenu from '@/components/UserAccountMenu';
 import { useAuthSession } from '@/hooks/use-auth-session';
@@ -45,9 +46,7 @@ export default function UserDashboardLayout({ children }: { children: React.Reac
   return (
     <div className="min-h-screen flex flex-col bg-[#f8f9ff]">
       <header className="bg-white border-b border-[#e5eeff] h-14 flex items-center px-4 sm:px-6 gap-4 sticky top-0 z-20">
-        <Link href="/" className="text-xl font-bold tracking-tight shrink-0" style={{ color: '#004aad' }}>
-          Dubiken
-        </Link>
+        <DubikenLogo href="/" size="sm" />
         <div className="flex-1" />
         <UserAccountMenu />
       </header>
